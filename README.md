@@ -1,3 +1,5 @@
+<img src="resources/icon-256.png" width="120" alt="WitchCat Clipboard" align="right" />
+
 # WitchCat Clipboard
 
 **Windows 剪贴板管理器。托盘常驻，单击弹出预览，`Alt+V` 唤出完整面板；文字、图片、文件自动入库，本地加密存储，可搜索可标签，选中回车就贴回刚才那个窗口。**
@@ -95,6 +97,33 @@ npm run icons        # 重新生成图标
 | `settings.json` | 界面与行为设置，明文 |
 
 从旧版本（叫 ZTB 时）升级会自动把 `%APPDATA%\ztb` 里的数据搬过来，只搬不删。
+
+## Logo
+
+<img src="resources/icon-256.png" width="88" alt="logo" />
+
+一个形状同时读出三层意思：**剪贴板的「夹子」就是巫师帽，「板面」就是猫脸**。
+所以它既是剪贴板、又是猫、又带着巫师的帽子，正好对上 WitchCat 这个名字。
+
+| | |
+| --- | --- |
+| 底板 | 靛蓝 → 紫罗兰渐变 `#6366f1 → #a855f7`，和界面里的强调色是同一套 |
+| 猫脸 / 板面 | 纯白圆角矩形，两只耳朵从板面下方探出来 |
+| 巫师帽 | 深靛 `#1b1740`，向左倾 16°，帽带用琥珀 `#f59e0b` 提一口气 |
+| 五官 | 靛蓝 `#4f46e5`：眼睛、鼻子，胡须半透明 |
+
+设计母版是 SVG，PNG 全部由它光栅化生成，**不存在两份互相打架的设计源**：
+
+| 文件 | 用途 |
+| --- | --- |
+| `resources/logo.svg` | 母版（完整细节） |
+| `resources/logo-tray.svg` | 托盘专用简化版：去掉胡须、鼻子、帽带，帽子和眼睛放大一档——16~32px 下细节只会糊成一团 |
+| `resources/icon.png` / `icon-256.png` | 应用图标、安装包图标、README |
+| `resources/tray.png` / `tray@2x.png` | 托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏那张） |
+
+改完 SVG 跑 `npm run icons` 重新生成。光栅化用的是 Electron 自带的 Chromium——
+它本来就在依赖里，不用再引 sharp/resvg 这类要编译的东西；画到 canvas 再取
+`toDataURL`，拿到的是真正带 alpha 的位图。
 
 ## 技术栈
 

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>WitchCat Clipboard</title>
+  <!--
+    构思：剪贴板的「夹子」就是巫师帽，「板面」就是猫脸。
+    一个形状同时读出猫、巫师、剪贴板三层意思，缩到 16px 时靠
+    白色板面 + 两只耳朵 + 深色尖帽的剪影仍然能认出来。
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1" />
+      <stop offset="1" stop-color="#a855f7" />
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.24" cy="0.16" r="0.86">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- 底板 -->
+  <rect width="512" height="512" rx="112" fill="url(#tile)" />
+  <rect width="512" height="512" rx="112" fill="url(#sheen)" />
+
+  <!-- 猫耳（画在板面之下，只露出耳尖） -->
+  <g fill="#ffffff" stroke="#ffffff" stroke-width="14" stroke-linejoin="round">
+    <path d="M170 234 L150 122 L232 190 Z" />
+    <path d="M342 234 L362 122 L280 190 Z" />
+  </g>
+
+  <!-- 板面 = 猫脸 -->
+  <rect x="136" y="196" width="240" height="218" rx="46" fill="#ffffff" />
+
+  <!-- 巫师帽 = 剪贴板的夹子 -->
+  <g transform="rotate(-16 256 200)">
+    <path
+      d="M256 62 C266 62 274 70 277 80 L316 188 C319 198 312 206 302 206 L210 206 C200 206 193 198 196 188 L235 80 C238 70 246 62 256 62 Z"
+      fill="#1b1740"
+    />
+    <rect x="174" y="196" width="164" height="30" rx="15" fill="#1b1740" />
+    <rect x="219" y="146" width="74" height="20" rx="10" fill="#f59e0b" />
+  </g>
+
+  <!-- 猫脸：眼睛、鼻子、胡须 -->
+  <g fill="#4f46e5">
+    <ellipse cx="202" cy="312" rx="18" ry="21" />
+    <ellipse cx="310" cy="312" rx="18" ry="21" />
+    <path d="M256 342 L271 359 C274 362 271 366 267 366 L245 366 C241 366 238 362 241 359 Z" />
+  </g>
+  <g stroke="#4f46e5" stroke-width="9" stroke-linecap="round" opacity="0.5">
+    <path d="M162 340 L196 348" />
+    <path d="M160 372 L196 372" />
+    <path d="M350 340 L316 348" />
+    <path d="M352 372 L316 372" />
+  </g>
+</svg>

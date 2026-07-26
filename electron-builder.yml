@@ -10,8 +10,10 @@ files:
   - out/**/*
   - package.json
   # 托盘图标和窗口图标运行时要读，必须打进 asar
+  # tray@2x.png 不是多余的：nativeImage 会按 @2x 约定自动挑高分屏那一张
   - resources/icon.png
   - resources/tray.png
+  - resources/tray@2x.png
   # 原生模块的编译中间产物和测试扩展没必要跟着安装包走
   - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/obj*/**'
   - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/test_extension.node'

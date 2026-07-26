@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 新增
+
+- **Logo**：剪贴板的「夹子」做成巫师帽、「板面」做成猫脸，一个形状同时读出剪贴板、猫、
+  巫师三层意思。母版是 `resources/logo.svg`，另有托盘专用简化版 `logo-tray.svg`
+  （去掉胡须/鼻子/帽带、帽子和眼睛放大一档，因为 16~32px 下细节只会糊成一团）。
+- 图标生成改为「SVG 母版 → Chromium 光栅化 → PNG」，不再手写像素绘制，
+  设计源只有一份。`npm run icons` 现在用 Electron 跑（`scripts/make-icons.cjs`），
+  画到 canvas 取 `toDataURL` 拿到真正带 alpha 的位图，不用引 sharp/resvg。
+- 产出 `tray@2x.png`，`nativeImage` 会按 `@2x` 约定在高分屏上自动挑它。
+
 ### 变更
 
 - 项目改名为 **WitchCat Clipboard**（原 ZTB）。安装包、窗口标题、托盘提示、appId

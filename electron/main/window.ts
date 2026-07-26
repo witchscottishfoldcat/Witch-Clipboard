@@ -45,10 +45,9 @@ export function createPanel(): BrowserWindow {
 
   // 面板是常驻的：关闭按钮只隐藏，退出走托盘
   panel.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault()
-      hidePanel()
-    }
+    if (isQuitting()) return
+    e.preventDefault()
+    hidePanel()
   })
 
   // 点到别处就收起（WCC_NO_AUTOHIDE=1 可关掉，方便开发时截图）
@@ -74,9 +73,20 @@ export function createPanel(): BrowserWindow {
   return panel
 }
 
-let isQuitting = false
+/**
+ * 是否正在退出。
+ * 常驻托盘的窗口都会拦截 close（点 × 只隐藏），退出时必须放行——
+ * 只要有一个窗口忘了判断这个标志，app.quit() 就会被它一直否决，
+ * 应用永远退不掉，只能上任务管理器。
+ */
+let quitting = false
+
 export function markQuitting(): void {
-  isQuitting = true
+  quitting = true
+}
+
+export function isQuitting(): boolean {
+  return quitting
 }
 
 /** 托盘图标的屏幕矩形，用来让面板贴着图标弹出 */

@@ -1,6 +1,6 @@
 {
   "name": "witchcat-clipboard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "license": "UNLICENSED",
   "description": "WitchCat Clipboard — Windows 剪贴板管理器：托盘常驻，Alt+V 唤出，文字/图片/文件自动入库，本地加密存储，可搜索可标签，选中即粘贴。",

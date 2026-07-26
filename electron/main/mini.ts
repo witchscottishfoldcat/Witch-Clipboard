@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { BrowserWindow, app, screen, shell } from 'electron'
 import { rememberForegroundWindow } from './paste'
 import { autoHideDisabled, claimForeground, watchOutsideClick } from './dismiss'
-import type { AnchorRect } from './window'
+import { isQuitting, type AnchorRect } from './window'
 
 const MINI_W = 340
 const MINI_H = 470
@@ -47,7 +47,12 @@ export function createMini(): BrowserWindow {
   mini.setAlwaysOnTop(true, 'pop-up-menu')
   mini.setMenuBarVisibility(false)
 
+  // 和完整面板一样：平时点 × 只隐藏，但退出时必须放行。
+  // 少了这个判断，app.quit() 会被这个窗口一直否决，应用永远退不掉。
+  // 和完整面板一样：平时点 × 只隐藏，但退出时必须放行。
+  // 少了这个判断，app.quit() 会被这个窗口一直否决，应用永远退不掉。
   mini.on('close', (e) => {
+    if (isQuitting()) return
     e.preventDefault()
     hideMini()
   })

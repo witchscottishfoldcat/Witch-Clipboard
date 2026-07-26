@@ -320,6 +320,27 @@ export async function runSelfTest(): Promise<void> {
   stopIdle()
   check('窗口已隐藏时看门狗自动停止', ticks === 0, `ticks=${ticks}`)
 
+  // 退出流程必须放最后：markQuitting() 是不可逆的全局状态
+  console.log('\n退出流程')
+  const { createPanel: makePanel, markQuitting } = await import('./window')
+  const { createMini: makeMini } = await import('./mini')
+
+  const panelWin = makePanel()
+  const miniWin = makeMini()
+  panelWin.close()
+  miniWin.close()
+  await new Promise((r) => setTimeout(r, 150))
+  check('退出前：完整面板点关闭只隐藏、不销毁', !panelWin.isDestroyed())
+  check('退出前：迷你面板点关闭只隐藏、不销毁', !miniWin.isDestroyed())
+
+  markQuitting()
+  panelWin.close()
+  miniWin.close()
+  await new Promise((r) => setTimeout(r, 250))
+  check('退出时：完整面板放行关闭', panelWin.isDestroyed())
+  // 少了这条判断，app.quit() 会被迷你面板一直否决，应用只能上任务管理器杀
+  check('退出时：迷你面板放行关闭', miniWin.isDestroyed())
+
   console.log(`\n结果：${passed} 通过 / ${failed} 失败\n`)
 
   try {

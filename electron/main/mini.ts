@@ -5,6 +5,7 @@
 import { join } from 'node:path'
 import { BrowserWindow, app, screen, shell } from 'electron'
 import { rememberForegroundWindow } from './paste'
+import { autoHideDisabled, claimForeground, watchOutsideClick } from './dismiss'
 import type { AnchorRect } from './window'
 
 const MINI_W = 340
@@ -52,7 +53,7 @@ export function createMini(): BrowserWindow {
   })
 
   mini.on('blur', () => {
-    if (isDev) return
+    if (autoHideDisabled()) return
     if (mini?.webContents.isDevToolsFocused()) return
     hideMini()
   })
@@ -95,17 +96,23 @@ function position(win: BrowserWindow, anchor?: AnchorRect): void {
   )
 }
 
+let stopWatch: (() => void) | null = null
+
 export function showMini(anchor?: AnchorRect): void {
   const win = mini ?? createMini()
   // 抢焦点之前记下原来的前台窗口，粘贴时要还给它
   rememberForegroundWindow()
   position(win, anchor)
-  win.show()
-  win.focus()
+  claimForeground(win)
   win.webContents.send('panel:shown')
+
+  stopWatch?.()
+  stopWatch = watchOutsideClick(win, hideMini)
 }
 
 export function hideMini(): void {
+  stopWatch?.()
+  stopWatch = null
   if (mini?.isVisible()) hiddenAt = Date.now()
   mini?.hide()
 }

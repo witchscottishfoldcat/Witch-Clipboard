@@ -34,6 +34,9 @@ interface Native {
   GetClipboardSequenceNumber: () => number
   GetForegroundWindow: () => unknown
   SetForegroundWindow: (hwnd: unknown) => boolean
+  /** 同一个导出，参数按整数句柄传，方便直接用 Electron 给的 HWND 数值 */
+  SetForegroundWindowByHandle: (hwnd: number) => boolean
+  GetForegroundWindowPid: (hwnd: number, pid: number[]) => number
   GetWindowThreadProcessId: (hwnd: unknown, pid: number[]) => number
   RegisterClipboardFormatW: (name: string) => number
   IsClipboardFormatAvailable: (format: number) => boolean
@@ -74,6 +77,10 @@ function load(): Native | null {
       GetClipboardSequenceNumber: user32.func('uint32 __stdcall GetClipboardSequenceNumber()'),
       GetForegroundWindow: user32.func('void* __stdcall GetForegroundWindow()'),
       SetForegroundWindow: user32.func('bool __stdcall SetForegroundWindow(void* hWnd)'),
+      SetForegroundWindowByHandle: user32.func('bool __stdcall SetForegroundWindow(uintptr hWnd)'),
+      GetForegroundWindowPid: user32.func(
+        'uint32 __stdcall GetWindowThreadProcessId(uintptr hWnd, _Out_ uint32* lpdwProcessId)',
+      ),
       GetWindowThreadProcessId: user32.func(
         'uint32 __stdcall GetWindowThreadProcessId(void* hWnd, _Out_ uint32* lpdwProcessId)',
       ),
@@ -277,6 +284,39 @@ export function writeClipboardFiles(paths: string[]): boolean {
     } catch {
       /* ignore */
     }
+    return false
+  }
+}
+
+/**
+ * 当前前台窗口属于哪个进程。
+ * 用它来判断「用户是不是点到别处去了」——比 blur 事件可靠：
+ * 从托盘唤出时 Windows 的前台抢占限制可能让窗口显示了却没拿到焦点，
+ * 那种情况下永远不会有 blur，只靠事件就永远收不起来。
+ * 返回 null 表示拿不到（原生不可用），调用方不要据此做收起动作。
+ */
+export function foregroundPid(): number | null {
+  if (!native) return null
+  try {
+    const hwnd = native.GetForegroundWindow()
+    if (!hwnd) return null
+    const pid: number[] = [0]
+    native.GetWindowThreadProcessId(hwnd, pid)
+    return pid[0] || null
+  } catch {
+    return null
+  }
+}
+
+/** 用 Electron 给的原生句柄强行抢前台，配合 win.focus() 提高成功率 */
+export function forceForeground(handle: Buffer): boolean {
+  if (!native) return false
+  try {
+    const hwnd = handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0)
+    if (!hwnd) return false
+    return native.SetForegroundWindowByHandle(hwnd)
+  } catch (err) {
+    console.error('[win32] 抢前台失败', err)
     return false
   }
 }

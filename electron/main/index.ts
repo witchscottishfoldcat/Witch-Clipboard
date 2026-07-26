@@ -11,8 +11,14 @@ import { startRetention } from '../data/retention'
 import { getSettings } from './settings'
 
 if (process.argv.includes('--self-test')) {
-  // 自检模式：跑存储层断言后退出，不建窗口也不注册热键
-  void import('./selftest').then((m) => m.runSelfTest())
+  // 自检模式：跑断言后退出，不注册热键
+  import('./selftest')
+    .then((m) => m.runSelfTest())
+    .catch((err) => {
+      // 不加 catch 的话自检中途抛异常会静默退出，看起来像「跑完了但少打了几行」
+      console.error('[selftest] 异常中断：', err)
+      app.exit(1)
+    })
 } else {
   // 只允许一个实例；第二次启动等于唤出面板
   const gotLock = app.requestSingleInstanceLock()

@@ -1,10 +1,10 @@
 import { join } from 'node:path'
 import { BrowserWindow, screen, shell, app } from 'electron'
 import { rememberForegroundWindow } from './paste'
+import { autoHideDisabled, claimForeground, watchOutsideClick } from './dismiss'
 
 const PANEL_W = 820
 const PANEL_H = 540
-const isDev = !app.isPackaged
 
 let panel: BrowserWindow | null = null
 
@@ -51,9 +51,9 @@ export function createPanel(): BrowserWindow {
     }
   })
 
-  // 失焦即收起（开发模式下保留，方便看 DevTools）
+  // 点到别处就收起（ZTB_NO_AUTOHIDE=1 可关掉，方便开发时截图）
   panel.on('blur', () => {
-    if (isDev) return
+    if (autoHideDisabled()) return
     if (panel?.webContents.isDevToolsFocused()) return
     hidePanel()
   })
@@ -135,18 +135,24 @@ export function hiddenRecently(within = 400): boolean {
   return Date.now() - hiddenAt < within
 }
 
+let stopWatch: (() => void) | null = null
+
 export function showPanel(anchor?: AnchorRect): void {
   const win = panel ?? createPanel()
   // 抢焦点之前记下原来的前台窗口，粘贴时要还给它
   rememberForegroundWindow()
   if (anchor) positionNearTray(win, anchor)
   else positionNearCursor(win)
-  win.show()
-  win.focus()
+  claimForeground(win)
   win.webContents.send('panel:shown')
+
+  stopWatch?.()
+  stopWatch = watchOutsideClick(win, hidePanel)
 }
 
 export function hidePanel(): void {
+  stopWatch?.()
+  stopWatch = null
   if (panel?.isVisible()) hiddenAt = Date.now()
   panel?.hide()
 }

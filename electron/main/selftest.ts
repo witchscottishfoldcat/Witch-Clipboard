@@ -24,6 +24,9 @@ function check(name: string, ok: boolean, detail = ''): void {
 export async function runSelfTest(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'ztb-selftest-'))
   app.setPath('userData', dir)
+  // 自检不走 bootstrap，得自己挡住「最后一个窗口销毁就退出应用」的默认行为，
+  // 否则销毁测试窗口之后进程会在下一个 await 处直接结束，后面的断言全都不会跑
+  app.on('window-all-closed', () => {})
   await app.whenReady()
 
   console.log(`\nZTB 自检 · 临时数据目录 ${dir}\n`)
@@ -235,6 +238,58 @@ export async function runSelfTest(): Promise<void> {
   await new Promise((r) => setTimeout(r, 200))
   check('面板可见时托盘点击收起面板', !win.isVisible(), `isVisible=${win.isVisible()}`)
   win.destroy()
+
+  // 「点到别处就收起」：注入假的前台 pid，把三种情况都测掉
+  console.log('\n点到别处自动收起')
+  const { watchOutsideClick } = await import('./dismiss')
+  const SELF = 1000
+  const OTHER = 2000
+
+  const scenario = async (
+    name: string,
+    pids: (number | null)[],
+    expectHidden: boolean,
+  ): Promise<void> => {
+    let visible = true
+    let step = 0
+    const target = { isDestroyed: () => false, isVisible: () => visible }
+    const stop = watchOutsideClick(
+      target,
+      () => {
+        visible = false
+      },
+      {
+        pollMs: 15,
+        graceMs: 40,
+        selfPid: SELF,
+        force: true,
+        getPid: () => pids[Math.min(step++, pids.length - 1)],
+      },
+    )
+    await new Promise((r) => setTimeout(r, 260))
+    stop()
+    check(name, visible === !expectHidden, `visible=${visible}`)
+  }
+
+  // 先拿到前台，用户再切走 → 应该收起
+  await scenario('先在前台、之后切到别的进程 → 收起', [SELF, SELF, SELF, OTHER], true)
+  // 从头到尾没拿到前台（被 Windows 的前台抢占限制挡住）→ 绝不能自己消失
+  await scenario('从来没拿到前台 → 不收起（不会自己消失）', [OTHER], false)
+  // 原生能力不可用 → 不做判定，交给 blur
+  await scenario('拿不到前台进程信息 → 不收起', [null], false)
+  // 自己的另一个窗口在前台（迷你面板 ↔ 完整面板）→ 不收起
+  await scenario('自己的窗口在前台 → 不收起', [SELF], false)
+
+  // 窗口已经隐藏时看门狗要自己停掉，不能空转
+  let ticks = 0
+  const stopIdle = watchOutsideClick(
+    { isDestroyed: () => false, isVisible: () => false },
+    () => {},
+    { pollMs: 15, graceMs: 0, selfPid: SELF, force: true, getPid: () => ++ticks && OTHER },
+  )
+  await new Promise((r) => setTimeout(r, 120))
+  stopIdle()
+  check('窗口已隐藏时看门狗自动停止', ticks === 0, `ticks=${ticks}`)
 
   console.log(`\n结果：${passed} 通过 / ${failed} 失败\n`)
 

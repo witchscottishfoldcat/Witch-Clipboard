@@ -30,6 +30,15 @@
 - `electron-builder` 增加 `publish` 配置（GitHub），构建时生成 `app-update.yml` 与 `latest.yml`。
 - 发布产物新增 `latest.yml`（更新检查靠它）与 `.blockmap`（支持差量下载）。
 
+### 修复
+
+- **更新检查在打包版里必然失败**：`electron-updater` 是 CJS，主进程打包成 CJS 之后
+  动态 `import()` 拿到的命名空间会把导出包进 `default`，`mod.autoUpdater` 是 `undefined`，
+  于是设置 `autoDownload` 时直接抛 `TypeError`。现在两种模块形状都认。
+  这个 bug 只在**装好的版本**里出现，开发模式压根走不到那条路径。
+- 更新过程写日志到 `%APPDATA%\WitchCat-Clipboard\update.log`：打包后的应用没有控制台，
+  上面那个 bug 原来只 `console.error`，对用户和维护者都完全不可见。有了日志才定位到它。
+
 ### 已知限制
 
 - 安装包**仍然没有代码签名**，更新时 Windows 会再弹一次 SmartScreen 提示。

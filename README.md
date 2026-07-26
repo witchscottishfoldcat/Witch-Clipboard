@@ -100,6 +100,10 @@ npm run icons        # 重新生成图标
 
 > 安装包没有代码签名，更新时 Windows 会再弹一次 SmartScreen 提示。
 
+更新过程会写日志到 `%APPDATA%\WitchCat-Clipboard\update.log`。打包后的应用没有控制台，
+更新又依赖网络，出问题时这个文件是唯一的线索——事实上第一版 1.0.0 的更新检查有个
+CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定位出来的。
+
 ## 数据存放在哪
 
 `%APPDATA%\WitchCat-Clipboard`（设置页里有「打开数据目录」按钮）：

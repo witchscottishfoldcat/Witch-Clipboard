@@ -7,6 +7,8 @@
  *    每次开机都弹一遍才是真正让人关掉更新的原因。
  */
 import { app, BrowserWindow } from 'electron'
+import { appendFileSync, existsSync, statSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { UpdateStatus } from '@shared/types'
 import { getSettings, saveSettings } from './settings'
 
@@ -33,14 +35,58 @@ function fakeVersion(): string | null {
   return app.isPackaged ? null : (process.env['WCC_FAKE_UPDATE'] ?? null)
 }
 
+/** 日志上限，超了就从头写；不做轮转，够查问题就行 */
+const LOG_MAX_BYTES = 256 * 1024
+
+export function updateLogPath(): string {
+  return join(app.getPath('userData'), 'update.log')
+}
+
+/**
+ * 更新检查全程写日志到数据目录。
+ * 打包后的应用没有控制台，出了问题（没网、被墙、GitHub 抽风）用户和维护者
+ * 都没法查，只能靠这个文件。
+ */
+function write(level: string, message: unknown): void {
+  try {
+    const file = updateLogPath()
+    if (existsSync(file) && statSync(file).size > LOG_MAX_BYTES) writeFileSync(file, '')
+    appendFileSync(file, `${new Date().toISOString()} [${level}] ${String(message)}\n`, 'utf8')
+  } catch {
+    /* 日志写不了不能影响更新本身 */
+  }
+}
+
+function fileLogger(): {
+  info: (m: unknown) => void
+  warn: (m: unknown) => void
+  error: (m: unknown) => void
+  debug: (m: unknown) => void
+} {
+  return {
+    info: (m) => write('info', m),
+    warn: (m) => write('warn', m),
+    error: (m) => write('error', m),
+    debug: () => {},
+  }
+}
+
 async function getUpdater(): Promise<Updater | null> {
   if (updater) return updater
   try {
-    const mod = await import('electron-updater')
-    updater = mod.autoUpdater
+    // electron-updater 是 CJS：打包成 CJS 之后动态 import 拿到的命名空间会把导出
+    // 包进 default，mod.autoUpdater 直接是 undefined。两种形状都要认。
+    const mod = (await import('electron-updater')) as unknown as {
+      autoUpdater?: Updater
+      default?: { autoUpdater?: Updater }
+    }
+    const resolved = mod.autoUpdater ?? mod.default?.autoUpdater
+    if (!resolved) throw new Error('electron-updater 里找不到 autoUpdater 导出')
+    updater = resolved
     updater.autoDownload = false // 必须用户点了才下
     updater.autoInstallOnAppQuit = false // 也不在退出时偷偷装
-    updater.logger = null
+    updater.logger = fileLogger()
+    updater.logger.info(`当前版本 ${app.getVersion()}，更新日志：${updateLogPath()}`)
 
     updater.on('update-available', (info) => {
       setStatus({ state: 'available', version: info.version, notes: releaseNotes(info) })
@@ -58,7 +104,8 @@ async function getUpdater(): Promise<Updater | null> {
 
     return updater
   } catch (err) {
-    console.error('[updater] 加载 electron-updater 失败', err)
+    // 这条以前只 console.error，打包后没有控制台，等于完全不可见
+    write('error', `加载 electron-updater 失败：${(err as Error).stack ?? err}`)
     setStatus({ state: 'error', error: (err as Error).message })
     return null
   }
@@ -159,5 +206,11 @@ export function currentStatus(): UpdateStatus {
 /** 启动后自动查一次；失败、无更新、以及被跳过的版本都不会打扰用户 */
 export function scheduleStartupCheck(): void {
   if (!app.isPackaged && !fakeVersion()) return
-  setTimeout(() => void checkForUpdate(true), STARTUP_DELAY_MS)
+  write('info', `${STARTUP_DELAY_MS / 1000} 秒后自动检查一次更新（当前 ${app.getVersion()}）`)
+  setTimeout(() => {
+    write('info', '开始自动检查更新')
+    void checkForUpdate(true).then((s) =>
+      write('info', `自动检查结果：state=${s.state} version=${s.version ?? '-'} ${s.error ?? ''}`),
+    )
+  }, STARTUP_DELAY_MS)
 }

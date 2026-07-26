@@ -20,6 +20,7 @@ const DEFAULTS: Settings = {
     'nordpass',
   ],
   hideAfterPaste: true,
+  trayOpensMini: true,
   autoLaunch: false,
   theme: 'system',
 }

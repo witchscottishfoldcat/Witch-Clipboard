@@ -4,9 +4,10 @@ import type { ItemStore } from './store'
 import { MemoryStore } from './store'
 import { getSettings, saveSettings } from './settings'
 import { hidePanel, showPanel } from './window'
+import { getMini, hideMini, showMini } from './mini'
 import { registerHotkey } from './shortcuts'
 import { pasteToPreviousWindow } from './paste'
-import { hasNative } from './win32'
+import { hasNative, writeClipboardFiles } from './win32'
 import { isOsProtected } from '../data/crypto'
 import { sweep } from '../data/retention'
 import type { WatcherHandle } from './watcher'
@@ -30,7 +31,15 @@ function writeToClipboard(deps: IpcDeps, id: number): boolean {
   const item = deps.store.get(id)
   if (!item) return false
 
-  if (item.kind === 'image') {
+  if (item.kind === 'files') {
+    const paths = (item.text ?? '').split('\n').filter(Boolean)
+    if (paths.length === 0) return false
+    // 先试真正的文件格式，这样粘贴出来是文件本身；不行就退回粘路径文本
+    if (!writeClipboardFiles(paths)) {
+      console.warn('[ipc] CF_HDROP 写入失败，退回写路径文本')
+      clipboard.writeText(paths.join('\n'))
+    }
+  } else if (item.kind === 'image') {
     const png = deps.store.imagePng(id)
     if (!png) {
       console.error(`[ipc] 条目 ${id} 的图片数据缺失`)
@@ -80,15 +89,22 @@ export function registerIpc(deps: IpcDeps): void {
     broadcast('items:changed')
   })
 
-  ipcMain.handle('items:paste', async (_e, id: number): Promise<PasteOutcome> => {
+  ipcMain.handle('items:paste', async (event, id: number): Promise<PasteOutcome> => {
     if (!writeToClipboard(deps, id)) return { ok: false, reason: 'not-found' }
 
+    const fromMini = BrowserWindow.fromWebContents(event.sender) === getMini()
     const hidden = getSettings().hideAfterPaste
-    if (hidden) hidePanel()
+    if (hidden) {
+      if (fromMini) hideMini()
+      else hidePanel()
+    }
 
     const result = await pasteToPreviousWindow()
-    // 自动粘贴失败时把面板重新亮出来，否则用户看不到「请手动 Ctrl+V」的提示
-    if (!result.ok && hidden) showPanel()
+    // 自动粘贴失败时把窗口重新亮出来，否则用户看不到「请手动 Ctrl+V」的提示
+    if (!result.ok && hidden) {
+      if (fromMini) showMini()
+      else showPanel()
+    }
 
     broadcast('items:changed')
     return result
@@ -99,7 +115,24 @@ export function registerIpc(deps: IpcDeps): void {
     return png ? `data:image/png;base64,${png.toString('base64')}` : null
   })
 
-  ipcMain.handle('panel:hide', () => hidePanel())
+  ipcMain.handle('panel:hide', (event) => {
+    // 迷你面板和完整面板共用这条通道，谁发的就收谁
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win && win === getMini()) hideMini()
+    else hidePanel()
+  })
+
+  ipcMain.handle('panel:expand', () => {
+    hideMini()
+    showPanel()
+  })
+
+  ipcMain.handle('items:reveal', (_e, id: number) => {
+    const item = store.get(id)
+    if (item?.kind !== 'files') return
+    const first = (item.text ?? '').split('\n').filter(Boolean)[0]
+    if (first) shell.showItemInFolder(first)
+  })
 
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:save', (_e, patch: Partial<Settings>) => {

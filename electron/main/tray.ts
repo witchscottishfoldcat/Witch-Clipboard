@@ -1,14 +1,9 @@
 import { join } from 'node:path'
 import { app, Menu, Tray, nativeImage } from 'electron'
-import {
-  showPanel,
-  hidePanel,
-  toggleFromTray,
-  hiddenRecently,
-  markQuitting,
-  type AnchorRect,
-} from './window'
+import { showPanel, hidePanel, toggleFromTray, markQuitting, type AnchorRect } from './window'
+import { showMini, hideMini, toggleMiniFromTray } from './mini'
 import { currentHotkey } from './shortcuts'
+import { getSettings } from './settings'
 
 let tray: Tray | null = null
 
@@ -18,20 +13,32 @@ export function createTray(): Tray {
   if (image.isEmpty()) console.error(`[tray] 图标加载失败：${iconPath}`)
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
 
-  tray.setToolTip(`ZTB 粘贴板 · 单击显示 · ${currentHotkey() ?? '热键未注册'}`)
+  tray.setToolTip(`ZTB 粘贴板 · 单击预览 · 双击完整面板 · ${currentHotkey() ?? '热键未注册'}`)
 
-  // toggleFromTray 内部自带「刚被失焦收起」的冷却判断
-  tray.on('click', (_event, bounds) => toggleFromTray(pickAnchor(bounds)))
+  // 单击默认弹迷你预览面板；设置里可以改成直接开完整面板。
+  // toggle 函数内部自带「刚被失焦收起」的冷却判断
+  tray.on('click', (_event, bounds) => {
+    const anchor = pickAnchor(bounds)
+    if (getSettings().trayOpensMini) toggleMiniFromTray(anchor)
+    else toggleFromTray(anchor)
+  })
 
-  // 有些用户习惯双击托盘：第一下已经弹出来了，第二下只要保证仍是显示状态
+  // 双击托盘：直接开完整面板
   tray.on('double-click', (_event, bounds) => {
-    if (!hiddenRecently()) return
+    hideMini()
     showPanel(pickAnchor(bounds))
   })
 
   const menu = Menu.buildFromTemplate([
-    { label: `显示面板 (${currentHotkey() ?? '未注册'})`, click: () => showPanel(trayBounds()) },
-    { label: '收起面板', click: () => hidePanel() },
+    { label: '迷你预览面板', click: () => showMini(trayBounds()) },
+    { label: `完整面板 (${currentHotkey() ?? '未注册'})`, click: () => showPanel(trayBounds()) },
+    {
+      label: '全部收起',
+      click: () => {
+        hideMini()
+        hidePanel()
+      },
+    },
     { type: 'separator' },
     { label: `ZTB v${app.getVersion()}`, enabled: false },
     { type: 'separator' },

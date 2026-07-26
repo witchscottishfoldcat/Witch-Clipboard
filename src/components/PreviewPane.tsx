@@ -1,8 +1,9 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ClipboardPaste, Copy, Pin, Trash2, Plus, X, Hash } from 'lucide-react'
+import { ClipboardPaste, Copy, Pin, Trash2, Plus, X, Hash, FolderOpen } from 'lucide-react'
 import type { ClipItem } from '@shared/types'
 import { badgeOf, colorValue } from '@/lib/kinds'
+import { fileInfo } from '@/lib/files'
 import { absoluteTime, formatBytes } from '@/lib/format'
 import { api } from '@/lib/api'
 
@@ -35,9 +36,18 @@ interface Props {
   onTogglePin: (id: number) => void
   onRemove: (id: number) => void
   onSetTags: (id: number, tags: string[]) => void
+  onReveal: (id: number) => void
 }
 
-export function PreviewPane({ item, onPaste, onCopy, onTogglePin, onRemove, onSetTags }: Props) {
+export function PreviewPane({
+  item,
+  onPaste,
+  onCopy,
+  onTogglePin,
+  onRemove,
+  onSetTags,
+  onReveal,
+}: Props) {
   const [draft, setDraft] = useState('')
   const [adding, setAdding] = useState(false)
   const fullImage = useFullImage(item)
@@ -52,6 +62,7 @@ export function PreviewPane({ item, onPaste, onCopy, onTogglePin, onRemove, onSe
 
   const badge = badgeOf(item)
   const color = colorValue(item)
+  const files = fileInfo(item)
   const isCode = item.kind === 'text' && item.autoKind === 'code'
 
   const commitTag = (e: KeyboardEvent<HTMLInputElement>): void => {
@@ -106,6 +117,38 @@ export function PreviewPane({ item, onPaste, onCopy, onTogglePin, onRemove, onSe
                 </div>
                 <div className="text-[10.5px] text-black/40 tabular-nums dark:text-white/40">
                   {item.width}×{item.height} px{fullImage ? '' : ' · 缩略图'}
+                </div>
+              </div>
+            ) : files ? (
+              <div className="space-y-1.5">
+                {files.paths.map((p, i) => (
+                  <div
+                    key={p}
+                    className="group flex items-start gap-1.5 rounded-lg bg-black/4 px-2 py-1.5 dark:bg-white/6"
+                  >
+                    <FolderOpen className="mt-0.5 size-3.5 shrink-0 text-black/35 dark:text-white/35" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[11.5px] text-black/80 dark:text-white/80">
+                        {p.split(/[\\/]/).pop()}
+                      </div>
+                      {/* 完整路径：找视频/大文件时要的就是这个 */}
+                      <div className="selectable break-all text-[10px] leading-4 text-black/40 dark:text-white/40">
+                        {p}
+                      </div>
+                    </div>
+                    {i === 0 && (
+                      <button
+                        onClick={() => onReveal(item.id)}
+                        title="在资源管理器中定位"
+                        className="shrink-0 rounded-md p-1 text-black/35 opacity-0 transition group-hover:opacity-100 hover:bg-black/8 hover:text-black/70 dark:text-white/35 dark:hover:bg-white/12"
+                      >
+                        <FolderOpen className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <div className="text-[10.5px] text-black/40 dark:text-white/40">
+                  {files.paths.length} 个文件 · 共 {formatBytes(item.bytes)} · 只记录路径，不复制文件内容
                 </div>
               </div>
             ) : color ? (

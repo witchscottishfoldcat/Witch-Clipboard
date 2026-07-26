@@ -13,6 +13,7 @@ import {
   Rocket,
   EyeOff,
   ClipboardPaste,
+  PanelTop,
 } from 'lucide-react'
 import type { SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
@@ -202,6 +203,7 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
             <div className="text-[11px] text-black/45 dark:text-white/45">行为</div>
             {(
               [
+                ['trayOpensMini', '单击托盘弹迷你预览面板', PanelTop],
                 ['hideAfterPaste', '粘贴后收起面板', ClipboardPaste],
                 ['skipSensitive', '跳过密码管理器的复制', EyeOff],
                 ['autoLaunch', '开机自启（静默驻托盘）', Rocket],

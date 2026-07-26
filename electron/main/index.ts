@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { createPanel, showPanel, markQuitting } from './window'
+import { createMini } from './mini'
 import { createTray, updateTrayTooltip } from './tray'
 import { registerHotkey, unregisterHotkey, currentHotkey } from './shortcuts'
 import { registerIpc } from './ipc'
@@ -30,7 +31,14 @@ function bootstrap(): void {
   let watcher: WatcherHandle | null = null
   let stopRetention: (() => void) | null = null
 
-  void app.whenReady().then(() => {
+  app.whenReady().then(startup).catch((err) => {
+    // 启动链路里的异常不能静默：吞掉的话表现就是「托盘有图标但面板永远不出来」
+    console.error('[main] 启动失败：', err)
+    dialog.showErrorBox('ZTB 启动失败', String((err as Error)?.stack ?? err))
+    app.exit(1)
+  })
+
+  function startup(): void {
     // 数据库打不开时降级到内存，保证应用还能用（会明确告诉用户）
     let memoryFallback = false
     try {
@@ -42,6 +50,7 @@ function bootstrap(): void {
     }
 
     createPanel()
+    createMini()
 
     const broadcastChanged = (): void => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('items:changed')
@@ -69,7 +78,7 @@ function bootstrap(): void {
       if (BrowserWindow.getAllWindows().length === 0) createPanel()
       showPanel()
     })
-  })
+  }
 
   // 托盘应用：所有窗口关闭也不退出
   app.on('window-all-closed', () => {})

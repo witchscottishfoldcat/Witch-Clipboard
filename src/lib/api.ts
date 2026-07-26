@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: Settings = {
   skipSensitive: true,
   sensitiveApps: [],
   hideAfterPaste: true,
+  trayOpensMini: true,
   autoLaunch: false,
   theme: 'system',
 }
@@ -30,6 +31,8 @@ const fallback: ZtbApi = {
   paste: async () => ({ ok: false, reason: 'no-native' }),
   imageDataUrl: async () => null,
   hidePanel: async () => {},
+  expandPanel: async () => {},
+  revealFile: async () => {},
   getSettings: async () => DEFAULT_SETTINGS,
   saveSettings: async (patch) => ({ ...DEFAULT_SETTINGS, ...patch }),
   security: async () => ({

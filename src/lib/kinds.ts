@@ -71,6 +71,7 @@ export const KIND_FILTERS: KindFilter[] = [
   { id: 'all', label: '全部', kind: null },
   { id: 'text', label: '文字', kind: 'text' },
   { id: 'image', label: '图片', kind: 'image' },
+  { id: 'files', label: '文件', kind: 'files' },
 ]
 
 /** 颜色类条目：抽出可直接用于 style 的颜色值 */

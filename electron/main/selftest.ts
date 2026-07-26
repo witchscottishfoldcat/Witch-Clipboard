@@ -187,6 +187,25 @@ export async function runSelfTest(): Promise<void> {
   store.close()
   check('数据库文件存在', existsSync(join(dir, 'ztb.db')))
 
+  // CF_HDROP 的写入是手搓 DROPFILES 结构体 + GlobalAlloc，最容易出错，做一次真实往返。
+  // 注意：这一步会覆盖系统剪贴板，跑完会把原来的文本放回去。
+  console.log('\n剪贴板文件列表（CF_HDROP）')
+  const win32 = await import('./win32')
+  const { clipboard } = await import('electron')
+  if (!win32.hasNative()) {
+    console.log('  - 原生能力不可用，跳过')
+  } else {
+    const before = clipboard.readText()
+    const probe = [join(app.getAppPath(), 'resources', 'icon.png'), join(dir, 'ztb.db')]
+
+    check('写入文件列表', win32.writeClipboardFiles(probe))
+    const readBack = win32.readClipboardFiles()
+    check('读回的路径与写入一致', JSON.stringify(readBack) === JSON.stringify(probe), String(readBack))
+
+    clipboard.writeText(before)
+    check('写文本后不再报告文件列表', win32.readClipboardFiles() === null)
+  }
+
   // 托盘单击的关键竞态：点托盘时面板会先因失焦收起，紧接着才收到 click 事件。
   // 没有冷却判断的话，用户点托盘想收起面板，面板会立刻又弹回来。
   console.log('\n面板与托盘单击')

@@ -244,6 +244,7 @@ export default function App() {
           onTogglePin={togglePin}
           onRemove={remove}
           onSetTags={setItemTags}
+          onReveal={(id) => void api.revealFile(id)}
         />
       </div>
 

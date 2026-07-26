@@ -17,6 +17,12 @@ const VK = {
 const KEYEVENTF_KEYUP = 0x0002
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
+/** 资源管理器复制文件时放进剪贴板的格式 */
+const CF_HDROP = 15
+const GMEM_MOVEABLE = 0x0002
+/** DragQueryFileW 传这个 index 表示「告诉我有几个文件」 */
+const DRAG_QUERY_COUNT = 0xffffffff
+
 /** 密码管理器用来标记「别记录我」的剪贴板格式 */
 const SENSITIVE_FORMATS = [
   'ExcludeClipboardContentFromMonitorProcessing',
@@ -41,6 +47,19 @@ interface Native {
     size: number[],
   ) => boolean
   CloseHandle: (handle: unknown) => boolean
+  // 剪贴板文件列表（CF_HDROP）
+  OpenClipboard: (hwnd: unknown) => boolean
+  CloseClipboard: () => boolean
+  EmptyClipboard: () => boolean
+  GetClipboardData: (format: number) => unknown
+  SetClipboardData: (format: number, handle: unknown) => unknown
+  DragQueryFileCount: (hDrop: unknown, index: number, buf: null, cch: number) => number
+  DragQueryFilePath: (hDrop: unknown, index: number, buf: Uint16Array, cch: number) => number
+  GlobalAlloc: (flags: number, bytes: number) => unknown
+  GlobalLock: (handle: unknown) => unknown
+  GlobalUnlock: (handle: unknown) => boolean
+  GlobalFree: (handle: unknown) => unknown
+  CopyMemory: (dst: unknown, src: Buffer, len: number) => void
 }
 
 const native: Native | null = load()
@@ -50,6 +69,7 @@ function load(): Native | null {
   try {
     const user32 = koffi.load('user32.dll')
     const kernel32 = koffi.load('kernel32.dll')
+    const shell32 = koffi.load('shell32.dll')
     return {
       GetClipboardSequenceNumber: user32.func('uint32 __stdcall GetClipboardSequenceNumber()'),
       GetForegroundWindow: user32.func('void* __stdcall GetForegroundWindow()'),
@@ -74,6 +94,24 @@ function load(): Native | null {
         'bool __stdcall QueryFullProcessImageNameW(void* hProcess, uint32 dwFlags, _Out_ uint16* lpExeName, _Inout_ uint32* lpdwSize)',
       ),
       CloseHandle: kernel32.func('bool __stdcall CloseHandle(void* handle)'),
+
+      OpenClipboard: user32.func('bool __stdcall OpenClipboard(void* hWndNewOwner)'),
+      CloseClipboard: user32.func('bool __stdcall CloseClipboard()'),
+      EmptyClipboard: user32.func('bool __stdcall EmptyClipboard()'),
+      GetClipboardData: user32.func('void* __stdcall GetClipboardData(uint32 uFormat)'),
+      SetClipboardData: user32.func('void* __stdcall SetClipboardData(uint32 uFormat, void* hMem)'),
+      // 同一个导出绑两次：查数量必须传 NULL，读路径要传缓冲区
+      DragQueryFileCount: shell32.func(
+        'uint32 __stdcall DragQueryFileW(void* hDrop, uint32 iFile, void* lpszFile, uint32 cch)',
+      ),
+      DragQueryFilePath: shell32.func(
+        'uint32 __stdcall DragQueryFileW(void* hDrop, uint32 iFile, _Out_ uint16* lpszFile, uint32 cch)',
+      ),
+      GlobalAlloc: kernel32.func('void* __stdcall GlobalAlloc(uint32 uFlags, size_t dwBytes)'),
+      GlobalLock: kernel32.func('void* __stdcall GlobalLock(void* hMem)'),
+      GlobalUnlock: kernel32.func('bool __stdcall GlobalUnlock(void* hMem)'),
+      GlobalFree: kernel32.func('void* __stdcall GlobalFree(void* hMem)'),
+      CopyMemory: kernel32.func('void __stdcall RtlMoveMemory(void* dst, void* src, size_t len)'),
     }
   } catch (err) {
     console.error('[win32] 原生能力加载失败，将降级运行：', (err as Error).message)
@@ -153,6 +191,93 @@ function exeOfWindow(hwnd: unknown): string | null {
         /* ignore */
       }
     }
+  }
+}
+
+/**
+ * 读剪贴板里的文件列表。
+ * Electron 的 clipboard API 拿不到 CF_HDROP，只能自己开剪贴板去读。
+ * 返回 null 表示剪贴板里没有文件（不是出错）。
+ */
+export function readClipboardFiles(): string[] | null {
+  if (!native) return null
+  try {
+    if (!native.IsClipboardFormatAvailable(CF_HDROP)) return null
+    if (!native.OpenClipboard(null)) return null
+    try {
+      const hDrop = native.GetClipboardData(CF_HDROP)
+      if (!hDrop) return null
+
+      const count = native.DragQueryFileCount(hDrop, DRAG_QUERY_COUNT, null, 0)
+      if (!count) return null
+
+      const paths: string[] = []
+      const buf = new Uint16Array(4096) // 单条路径上限远小于 8KB
+      for (let i = 0; i < count; i++) {
+        const len = native.DragQueryFilePath(hDrop, i, buf, buf.length)
+        if (len > 0) paths.push(Buffer.from(buf.buffer, 0, len * 2).toString('utf16le'))
+      }
+      return paths.length > 0 ? paths : null
+    } finally {
+      native.CloseClipboard()
+    }
+  } catch (err) {
+    console.error('[win32] 读剪贴板文件列表失败', err)
+    return null
+  }
+}
+
+/**
+ * 把文件列表写回剪贴板（真正的 CF_HDROP，能直接粘贴成文件而不是文本）。
+ * 结构是 DROPFILES 头 + 双 null 结尾的宽字符路径串。
+ */
+export function writeClipboardFiles(paths: string[]): boolean {
+  if (!native || paths.length === 0) return false
+
+  const HEADER = 20 // DROPFILES: DWORD pFiles + POINT pt(8) + BOOL fNC + BOOL fWide
+  const list = Buffer.concat([
+    ...paths.map((p) => Buffer.from(p + '\0', 'utf16le')),
+    Buffer.from('\0', 'utf16le'),
+  ])
+  const payload = Buffer.alloc(HEADER + list.length)
+  payload.writeUInt32LE(HEADER, 0) // pFiles：路径串相对结构起始的偏移
+  payload.writeUInt32LE(1, 16) // fWide = TRUE（宽字符）
+  list.copy(payload, HEADER)
+
+  let hMem: unknown = null
+  try {
+    hMem = native.GlobalAlloc(GMEM_MOVEABLE, payload.length)
+    if (!hMem) return false
+    const locked = native.GlobalLock(hMem)
+    if (!locked) {
+      native.GlobalFree(hMem)
+      return false
+    }
+    native.CopyMemory(locked, payload, payload.length)
+    native.GlobalUnlock(hMem)
+
+    if (!native.OpenClipboard(null)) {
+      native.GlobalFree(hMem)
+      return false
+    }
+    native.EmptyClipboard()
+    const ok = native.SetClipboardData(CF_HDROP, hMem)
+    native.CloseClipboard()
+
+    // SetClipboardData 成功后内存所有权归系统，不能再 free
+    if (!ok) {
+      native.GlobalFree(hMem)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[win32] 写剪贴板文件列表失败', err)
+    try {
+      if (hMem) native.GlobalFree(hMem)
+    } catch {
+      /* ignore */
+    }
+    return false
   }
 }
 

@@ -66,6 +66,8 @@ export interface Settings {
   sensitiveApps: string[]
   /** 粘贴后自动隐藏面板 */
   hideAfterPaste: boolean
+  /** 单击托盘弹迷你预览面板（false = 直接开完整面板） */
+  trayOpensMini: boolean
   /** 开机自启（静默启动到托盘） */
   autoLaunch: boolean
   theme: 'system' | 'light' | 'dark'
@@ -105,6 +107,10 @@ export interface ZtbApi {
   /** 取全尺寸原图（data URL），非图片条目返回 null */
   imageDataUrl(id: number): Promise<string | null>
   hidePanel(): Promise<void>
+  /** 从迷你面板切到完整面板 */
+  expandPanel(): Promise<void>
+  /** 在资源管理器里定位文件条目 */
+  revealFile(id: number): Promise<void>
   getSettings(): Promise<Settings>
   saveSettings(patch: Partial<Settings>): Promise<Settings>
   security(): Promise<SecurityInfo>

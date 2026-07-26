@@ -187,6 +187,36 @@ export async function runSelfTest(): Promise<void> {
   store.close()
   check('数据库文件存在', existsSync(join(dir, 'ztb.db')))
 
+  // 托盘单击的关键竞态：点托盘时面板会先因失焦收起，紧接着才收到 click 事件。
+  // 没有冷却判断的话，用户点托盘想收起面板，面板会立刻又弹回来。
+  console.log('\n面板与托盘单击')
+  const { createPanel, showPanel, hidePanel, toggleFromTray, hiddenRecently } = await import(
+    './window'
+  )
+  const win = createPanel()
+  showPanel()
+  check('showPanel 后可见', win.isVisible())
+  check('刚显示时不在冷却期', !hiddenRecently())
+
+  hidePanel()
+  check('hidePanel 后不可见', !win.isVisible())
+  check('刚隐藏后处于冷却期', hiddenRecently())
+
+  toggleFromTray()
+  check('失焦刚收起时，托盘那一下点击不会又把面板弹回来', !win.isVisible())
+
+  await new Promise((r) => setTimeout(r, 450))
+  check('冷却期过后不再抑制', !hiddenRecently())
+
+  toggleFromTray()
+  await new Promise((r) => setTimeout(r, 200))
+  check('冷却后托盘点击能弹出面板', win.isVisible(), `isVisible=${win.isVisible()}`)
+
+  toggleFromTray()
+  await new Promise((r) => setTimeout(r, 200))
+  check('面板可见时托盘点击收起面板', !win.isVisible(), `isVisible=${win.isVisible()}`)
+  win.destroy()
+
   console.log(`\n结果：${passed} 通过 / ${failed} 失败\n`)
 
   try {

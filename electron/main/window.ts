@@ -79,36 +79,91 @@ export function markQuitting(): void {
   isQuitting = true
 }
 
-/** 把面板放到鼠标所在屏幕的光标附近，并保证完整落在工作区内 */
+/** 托盘图标的屏幕矩形，用来让面板贴着图标弹出 */
+export interface AnchorRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 把窗口夹进工作区，保证四边都不出屏 */
+function clampToWorkArea(x: number, y: number, w: number, h: number, near: { x: number; y: number }) {
+  const { workArea } = screen.getDisplayNearestPoint(near)
+  return {
+    x: Math.min(Math.max(x, workArea.x + 8), workArea.x + workArea.width - w - 8),
+    y: Math.min(Math.max(y, workArea.y + 8), workArea.y + workArea.height - h - 8),
+  }
+}
+
+/** 光标附近（热键唤出时用） */
 function positionNearCursor(win: BrowserWindow): void {
   const cursor = screen.getCursorScreenPoint()
-  const { workArea } = screen.getDisplayNearestPoint(cursor)
   const [w, h] = win.getSize()
-
-  let x = Math.round(cursor.x - w / 2)
-  let y = Math.round(cursor.y - 40)
-
-  x = Math.min(Math.max(x, workArea.x + 8), workArea.x + workArea.width - w - 8)
-  y = Math.min(Math.max(y, workArea.y + 8), workArea.y + workArea.height - h - 8)
-
+  const { x, y } = clampToWorkArea(
+    Math.round(cursor.x - w / 2),
+    Math.round(cursor.y - 40),
+    w,
+    h,
+    cursor,
+  )
   win.setPosition(x, y, false)
 }
 
-export function showPanel(): void {
+/** 贴着托盘图标弹出：右边缘对齐图标右缘，整体压在图标上方 */
+function positionNearTray(win: BrowserWindow, anchor: AnchorRect): void {
+  const [w, h] = win.getSize()
+  const { x, y } = clampToWorkArea(
+    Math.round(anchor.x + anchor.width - w),
+    Math.round(anchor.y - h - 8),
+    w,
+    h,
+    { x: anchor.x, y: anchor.y },
+  )
+  win.setPosition(x, y, false)
+}
+
+/** 面板最后一次被隐藏的时刻，用于判断托盘那一下点击到底是「唤出」还是「收起」 */
+let hiddenAt = 0
+
+/**
+ * 面板是不是刚刚才被隐藏。
+ * 点托盘图标时窗口会先失焦并自动收起，紧接着才收到 click 事件；
+ * 没有这个判断，用户想点托盘收起面板，结果它会立刻又弹回来。
+ */
+export function hiddenRecently(within = 400): boolean {
+  return Date.now() - hiddenAt < within
+}
+
+export function showPanel(anchor?: AnchorRect): void {
   const win = panel ?? createPanel()
   // 抢焦点之前记下原来的前台窗口，粘贴时要还给它
   rememberForegroundWindow()
-  positionNearCursor(win)
+  if (anchor) positionNearTray(win, anchor)
+  else positionNearCursor(win)
   win.show()
   win.focus()
   win.webContents.send('panel:shown')
 }
 
 export function hidePanel(): void {
+  if (panel?.isVisible()) hiddenAt = Date.now()
   panel?.hide()
 }
 
+/** 热键语义：可见且有焦点才收起；可见但没焦点时置前，不要莫名消失 */
 export function togglePanel(): void {
   if (panel?.isVisible() && panel.isFocused()) hidePanel()
   else showPanel()
+}
+
+/**
+ * 托盘单击语义：可见就收起，不可见就贴着图标弹出。
+ * 冷却判断放在这里而不是事件处理器里——它是这个动作语义的一部分：
+ * 点托盘时面板会先因失焦收起，紧接着才收到 click，少了这一步用户就永远收不起面板。
+ */
+export function toggleFromTray(anchor?: AnchorRect): void {
+  if (hiddenRecently()) return
+  if (panel?.isVisible()) hidePanel()
+  else showPanel(anchor)
 }

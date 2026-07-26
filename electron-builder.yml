@@ -6,6 +6,13 @@ directories:
   output: release
   buildResources: build
 
+# 自动更新的来源。有这段 electron-builder 才会生成 app-update.yml
+# （打进 resources/），electron-updater 靠它知道去哪查版本。
+publish:
+  provider: github
+  owner: witchscottishfoldcat
+  repo: WitchCat-Clipboard
+
 files:
   - out/**/*
   - package.json

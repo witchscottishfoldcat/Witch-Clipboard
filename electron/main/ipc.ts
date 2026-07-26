@@ -10,6 +10,13 @@ import { pasteToPreviousWindow } from './paste'
 import { hasNative, writeClipboardFiles } from './win32'
 import { isOsProtected } from '../data/crypto'
 import { sweep } from '../data/retention'
+import {
+  checkForUpdate,
+  currentStatus,
+  downloadUpdate,
+  installUpdate,
+  skipVersion,
+} from './updater'
 import type { WatcherHandle } from './watcher'
 
 export interface IpcDeps {
@@ -164,4 +171,10 @@ export function registerIpc(deps: IpcDeps): void {
   )
 
   ipcMain.handle('app:openDataDir', () => shell.openPath(app.getPath('userData')))
+
+  ipcMain.handle('update:check', () => checkForUpdate(false))
+  ipcMain.handle('update:download', () => downloadUpdate())
+  ipcMain.handle('update:install', () => installUpdate())
+  ipcMain.handle('update:skip', (_e, version?: string) => skipVersion(version))
+  ipcMain.handle('update:status', () => currentStatus())
 }

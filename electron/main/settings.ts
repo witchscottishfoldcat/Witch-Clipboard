@@ -23,6 +23,7 @@ const DEFAULTS: Settings = {
   trayOpensMini: true,
   autoLaunch: false,
   theme: 'system',
+  skippedVersion: null,
 }
 
 let cache: Settings | null = null

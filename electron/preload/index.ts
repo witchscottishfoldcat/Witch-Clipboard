@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ClipboardApi, ListQuery, Settings } from '@shared/types'
+import type { ClipboardApi, ListQuery, Settings, UpdateStatus } from '@shared/types'
 
 /** 渲染进程只能看到这份白名单，没有 node / 没有裸 ipcRenderer */
 const api: ClipboardApi = {
@@ -19,6 +19,17 @@ const api: ClipboardApi = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:save', patch),
   security: () => ipcRenderer.invoke('app:security'),
+
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  skipUpdate: (version) => ipcRenderer.invoke('update:skip', version),
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  onUpdateStatus: (cb) => {
+    const handler = (_e: unknown, status: UpdateStatus): void => cb(status)
+    ipcRenderer.on('update:status', handler)
+    return () => ipcRenderer.off('update:status', handler)
+  },
   openDataDir: () => ipcRenderer.invoke('app:openDataDir'),
 
   onChanged: (cb) => {

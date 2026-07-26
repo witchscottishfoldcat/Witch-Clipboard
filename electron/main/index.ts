@@ -10,6 +10,7 @@ import { SqliteStore } from '../data/store-sqlite'
 import { startRetention } from '../data/retention'
 import { getSettings } from './settings'
 import { migrateLegacyData, useCanonicalUserData } from './paths'
+import { scheduleStartupCheck } from './updater'
 
 if (process.argv.includes('--self-test')) {
   // 自检模式：跑断言后退出，不注册热键
@@ -82,6 +83,9 @@ function bootstrap(): void {
     if (app.isPackaged) {
       app.setLoginItemSettings({ openAtLogin: autoLaunch, args: ['--hidden'] })
     }
+
+    // 启动后延迟查一次更新；查不到、出错、以及用户说过「暂不更新」的版本都不会打扰
+    scheduleStartupCheck()
 
     // --hidden 是开机自启用的：只驻托盘
     const silent = process.argv.includes('--hidden')

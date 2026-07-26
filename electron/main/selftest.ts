@@ -239,6 +239,35 @@ export async function runSelfTest(): Promise<void> {
   check('面板可见时托盘点击收起面板', !win.isVisible(), `isVisible=${win.isVisible()}`)
   win.destroy()
 
+  // 自动更新：不能自动下载、不能逼着更新、说过「暂不」就别再提同一个版本
+  console.log('\n自动更新')
+  process.env['WCC_FAKE_UPDATE'] = '99.0.0'
+  const updater = await import('./updater')
+  const { getSettings: readSettings, saveSettings: writeSettings } = await import('./settings')
+  writeSettings({ skippedVersion: null })
+
+  const first = await updater.checkForUpdate(false)
+  check('查到新版本', first.state === 'available' && first.version === '99.0.0', JSON.stringify(first))
+  check('检查完不会自动开始下载', first.state !== 'downloading' && first.percent === undefined)
+
+  updater.skipVersion('99.0.0')
+  check('「暂不更新」会记住版本号', readSettings().skippedVersion === '99.0.0')
+  check('「暂不更新」后状态回到 idle', updater.currentStatus().state === 'idle')
+
+  const silent = await updater.checkForUpdate(true)
+  check('启动时的自动检查不再提示被跳过的版本', silent.state === 'idle', JSON.stringify(silent))
+
+  const manual = await updater.checkForUpdate(false)
+  check('手动检查仍然如实报告有新版本', manual.state === 'available')
+
+  const downloaded = await updater.downloadUpdate()
+  check('下载后进入可安装状态', downloaded.state === 'ready')
+  updater.installUpdate() // 假更新下不会真的重启
+  check('假更新调用安装不会退出进程', true)
+
+  writeSettings({ skippedVersion: null })
+  delete process.env['WCC_FAKE_UPDATE']
+
   // 「点到别处就收起」：注入假的前台 pid，把三种情况都测掉
   console.log('\n点到别处自动收起')
   const { watchOutsideClick } = await import('./dismiss')

@@ -71,6 +71,31 @@ export interface Settings {
   /** 开机自启（静默启动到托盘） */
   autoLaunch: boolean
   theme: 'system' | 'light' | 'dark'
+  /** 用户选了「暂不更新」的版本号，启动时不再提示它 */
+  skippedVersion: string | null
+}
+
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'none'
+  | 'downloading'
+  | 'ready'
+  | 'error'
+  /** 开发模式等不支持自动更新的场景 */
+  | 'unsupported'
+
+export interface UpdateStatus {
+  state: UpdateState
+  currentVersion: string
+  /** 可更新到的版本号 */
+  version?: string
+  /** 发布说明（已去标签、截断） */
+  notes?: string
+  /** 下载进度 0~100 */
+  percent?: number
+  error?: string
 }
 
 /** 自动粘贴的结果；失败时界面提示「已复制，请手动 Ctrl+V」 */
@@ -114,6 +139,18 @@ export interface ClipboardApi {
   getSettings(): Promise<Settings>
   saveSettings(patch: Partial<Settings>): Promise<Settings>
   security(): Promise<SecurityInfo>
+
+  /** 手动检查更新 */
+  checkUpdate(): Promise<UpdateStatus>
+  /** 用户同意后才下载 */
+  downloadUpdate(): Promise<UpdateStatus>
+  /** 重启并安装已下载的更新 */
+  installUpdate(): Promise<void>
+  /** 暂不更新：记住这个版本，下次启动不再提示 */
+  skipUpdate(version?: string): Promise<UpdateStatus>
+  updateStatus(): Promise<UpdateStatus>
+  /** 更新状态变化（检查中、有更新、下载进度、下载完成…） */
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void
   /** 在资源管理器里打开数据目录 */
   openDataDir(): Promise<void>
   /** 库有变化时触发，返回取消订阅函数 */

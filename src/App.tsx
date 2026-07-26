@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import type { ItemKind, ListQuery, PasteOutcome } from '@shared/types'
+import type { ItemKind, ListQuery, PasteOutcome, UpdateStatus } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems, useStats, useTags } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
@@ -11,6 +11,7 @@ import { PreviewPane } from '@/components/PreviewPane'
 import { Footer } from '@/components/Footer'
 import { SettingsSheet } from '@/components/SettingsSheet'
 import { Toast, type ToastMessage } from '@/components/Toast'
+import { UpdateBanner } from '@/components/UpdateBanner'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
@@ -31,6 +32,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hotkey, setHotkey] = useState('Alt+V')
   const [toast, setToast] = useState<ToastMessage | null>(null)
+  const [update, setUpdate] = useState<UpdateStatus | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,6 +58,12 @@ export default function App() {
   }, [])
 
   useEffect(() => loadHotkey(), [loadHotkey])
+
+  // 更新状态：主进程启动后会自动查一次，有结果就推过来
+  useEffect(() => {
+    void api.updateStatus().then(setUpdate)
+    return api.onUpdateStatus(setUpdate)
+  }, [])
 
   // 结果变化后保证有选中项
   useEffect(() => {
@@ -215,6 +223,16 @@ export default function App() {
         onClose={() => void api.hidePanel()}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      <AnimatePresence>
+        {(update?.state === 'available' || update?.state === 'ready') && (
+          <UpdateBanner
+            status={update}
+            onOpen={() => setSettingsOpen(true)}
+            onSkip={() => void api.skipUpdate(update.version).then(setUpdate)}
+          />
+        )}
+      </AnimatePresence>
 
       <FilterBar
         kind={kind}

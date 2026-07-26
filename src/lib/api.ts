@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: Settings = {
   trayOpensMini: true,
   autoLaunch: false,
   theme: 'system',
+  skippedVersion: null,
 }
 
 /** 纯浏览器里打开时（没有 preload）用的空实现，避免整页崩掉 */
@@ -43,6 +44,12 @@ const fallback: ClipboardApi = {
     dataDir: '',
   }),
   openDataDir: async () => {},
+  checkUpdate: async () => ({ state: 'unsupported', currentVersion: '0.0.0' }),
+  downloadUpdate: async () => ({ state: 'unsupported', currentVersion: '0.0.0' }),
+  installUpdate: async () => {},
+  skipUpdate: async () => ({ state: 'idle', currentVersion: '0.0.0' }),
+  updateStatus: async () => ({ state: 'idle', currentVersion: '0.0.0' }),
+  onUpdateStatus: () => () => {},
   onChanged: () => () => {},
   onPanelShown: () => () => {},
 }

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
+import { UpdateSection } from './UpdateSection'
 
 interface Props {
   onClose: () => void
@@ -290,6 +291,8 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
               {confirmClear ? '确认清空？（置顶条目会保留）' : '清空历史记录'}
             </button>
           </section>
+
+          <UpdateSection onToast={onToast} />
 
           {/* 安全状态 */}
           {security && (

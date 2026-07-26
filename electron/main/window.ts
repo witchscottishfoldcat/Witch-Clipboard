@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { BrowserWindow, screen, shell, app } from 'electron'
+import { rememberForegroundWindow } from './paste'
 
 const PANEL_W = 820
 const PANEL_H = 540
@@ -95,6 +96,8 @@ function positionNearCursor(win: BrowserWindow): void {
 
 export function showPanel(): void {
   const win = panel ?? createPanel()
+  // 抢焦点之前记下原来的前台窗口，粘贴时要还给它
+  rememberForegroundWindow()
   positionNearCursor(win)
   win.show()
   win.focus()

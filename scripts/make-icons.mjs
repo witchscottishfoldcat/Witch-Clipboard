@@ -137,66 +137,13 @@ function appIcon(withLines) {
   }
 }
 
-/* ---------- 演示图片 ---------- */
-
-function demoShot(u, v) {
-  // 深色渐变背景
-  let c = mix([30, 27, 75], [49, 46, 129], v)
-  // 卡片
-  if (inRoundRect(u, v, 0.5, 0.52, 0.42, 0.38, 0.05)) {
-    c = mix(c, WHITE, 0.1)
-    // 顶部栏
-    if (v < 0.24) c = mix(c, WHITE, 0.07)
-    // 三个窗口点
-    for (let i = 0; i < 3; i++) {
-      if (Math.hypot(u - (0.14 + i * 0.045), v - 0.19) < 0.014) {
-        c = mix(INDIGO, VIOLET, i / 2)
-      }
-    }
-    // 内容行
-    const rows = [0.36, 0.47, 0.58, 0.69]
-    for (let i = 0; i < rows.length; i++) {
-      const w = [0.3, 0.24, 0.33, 0.16][i]
-      if (inRoundRect(u, v, 0.12 + w / 2, rows[i], w / 2, 0.022, 0.022)) {
-        c = mix(c, WHITE, i === 0 ? 0.55 : 0.28)
-      }
-    }
-    // 强调块
-    if (inRoundRect(u, v, 0.76, 0.62, 0.1, 0.16, 0.04)) {
-      c = mix(INDIGO, VIOLET, (v - 0.46) / 0.32)
-    }
-  }
-  return [...c, 255]
-}
-
-function demoChart(u, v) {
-  let c = mix([24, 24, 37], [39, 39, 62], v)
-  const bars = [0.42, 0.62, 0.35, 0.78, 0.55, 0.9, 0.48]
-  const n = bars.length
-  const gap = 0.02
-  const bw = (0.84 - gap * (n - 1)) / n
-  for (let i = 0; i < n; i++) {
-    const x0 = 0.08 + i * (bw + gap)
-    const h = bars[i] * 0.66
-    const top = 0.88 - h
-    if (inRoundRect(u, v, x0 + bw / 2, top + h / 2, bw / 2, h / 2, Math.min(bw / 2, 0.018))) {
-      c = mix(INDIGO, VIOLET, (v - top) / h)
-    }
-  }
-  // 基线
-  if (Math.abs(v - 0.89) < 0.004 && u > 0.06 && u < 0.94) c = mix(c, WHITE, 0.25)
-  return [...c, 255]
-}
-
 /* ---------- 输出 ---------- */
 
-mkdirSync(join(RES, 'demo'), { recursive: true })
+mkdirSync(RES, { recursive: true })
 
 const jobs = [
   ['icon.png', 256, 256, appIcon(true)],
   ['tray.png', 32, 32, appIcon(false)],
-  ['demo/demo-shot.png', 480, 300, demoShot],
-  ['demo/demo-chart.png', 480, 300, demoChart],
 ]
 
 for (const [name, w, h, shade] of jobs) {

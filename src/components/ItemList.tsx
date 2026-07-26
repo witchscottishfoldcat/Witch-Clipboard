@@ -11,11 +11,23 @@ interface Props {
   onPaste: (id: number) => void
   onTogglePin: (id: number) => void
   loading: boolean
+  /** 库本身是空的（而不是被筛选条件筛空了） */
+  libraryEmpty: boolean
+  hotkey: string
 }
 
 const ROW = 72 // 68px 行高 + 4px 间隔
 
-export function ItemList({ items, selectedId, onSelect, onPaste, onTogglePin, loading }: Props) {
+export function ItemList({
+  items,
+  selectedId,
+  onSelect,
+  onPaste,
+  onTogglePin,
+  loading,
+  libraryEmpty,
+  hotkey,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const virt = useVirtualizer({
@@ -39,14 +51,31 @@ export function ItemList({ items, selectedId, onSelect, onPaste, onTogglePin, lo
 
   if (!loading && items.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex size-14 items-center justify-center rounded-2xl bg-black/4 dark:bg-white/6">
           <ClipboardList className="size-6 text-black/25 dark:text-white/25" />
         </div>
-        <div className="text-[13px] text-black/45 dark:text-white/45">没有匹配的记录</div>
-        <div className="text-[11px] text-black/30 dark:text-white/30">
-          换个关键词，或清掉上面的筛选条件
-        </div>
+        {libraryEmpty ? (
+          <>
+            <div className="text-[13px] text-black/45 dark:text-white/45">还没有记录</div>
+            <div className="text-[11px] leading-5 text-black/30 dark:text-white/30">
+              复制任何文字或截图，ZTB 会自动收进来。
+              <br />
+              之后按{' '}
+              <kbd className="rounded border border-black/10 bg-black/4 px-1 font-sans dark:border-white/12 dark:bg-white/8">
+                {hotkey}
+              </kbd>{' '}
+              随时唤出这个面板。
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-[13px] text-black/45 dark:text-white/45">没有匹配的记录</div>
+            <div className="text-[11px] text-black/30 dark:text-white/30">
+              换个关键词，或清掉上面的筛选条件
+            </div>
+          </>
+        )}
       </div>
     )
   }

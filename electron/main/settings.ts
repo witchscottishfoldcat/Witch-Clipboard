@@ -8,7 +8,19 @@ const DEFAULTS: Settings = {
   maxItems: 2000,
   maxDays: 30,
   skipSensitive: true,
+  // 常见密码管理器：命中进程名就不入库
+  sensitiveApps: [
+    'keepass',
+    '1password',
+    'bitwarden',
+    'lastpass',
+    'enpass',
+    'keeweb',
+    'dashlane',
+    'nordpass',
+  ],
   hideAfterPaste: true,
+  autoLaunch: false,
   theme: 'system',
 }
 

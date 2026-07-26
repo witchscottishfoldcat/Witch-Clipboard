@@ -1,9 +1,32 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ClipboardPaste, Copy, Pin, Trash2, Plus, X, Hash } from 'lucide-react'
 import type { ClipItem } from '@shared/types'
 import { badgeOf, colorValue } from '@/lib/kinds'
 import { absoluteTime, formatBytes } from '@/lib/format'
+import { api } from '@/lib/api'
+
+/** 预览面板显示原图；列表里用的是缩略图 */
+function useFullImage(item: ClipItem | null): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  const id = item?.kind === 'image' ? item.id : null
+
+  useEffect(() => {
+    if (id === null) {
+      setUrl(null)
+      return
+    }
+    let alive = true
+    void api.imageDataUrl(id).then((u) => {
+      if (alive) setUrl(u)
+    })
+    return () => {
+      alive = false
+    }
+  }, [id])
+
+  return url
+}
 
 interface Props {
   item: ClipItem | null
@@ -17,6 +40,7 @@ interface Props {
 export function PreviewPane({ item, onPaste, onCopy, onTogglePin, onRemove, onSetTags }: Props) {
   const [draft, setDraft] = useState('')
   const [adding, setAdding] = useState(false)
+  const fullImage = useFullImage(item)
 
   if (!item) {
     return (
@@ -70,9 +94,19 @@ export function PreviewPane({ item, onPaste, onCopy, onTogglePin, onRemove, onSe
 
           {/* 内容 */}
           <div className="min-h-0 flex-1 overflow-y-auto px-3.5">
-            {item.kind === 'image' && item.thumb ? (
-              <div className="overflow-hidden rounded-xl border border-black/8 bg-[repeating-conic-gradient(#0000_0_25%,#8881_0_50%)] bg-[length:16px_16px] dark:border-white/10">
-                <img src={item.thumb} alt="" draggable={false} className="w-full object-contain" />
+            {item.kind === 'image' ? (
+              <div className="space-y-1.5">
+                <div className="overflow-hidden rounded-xl border border-black/8 bg-[repeating-conic-gradient(#0000_0_25%,#8881_0_50%)] bg-[length:16px_16px] dark:border-white/10">
+                  <img
+                    src={fullImage ?? item.thumb ?? ''}
+                    alt=""
+                    draggable={false}
+                    className="w-full object-contain"
+                  />
+                </div>
+                <div className="text-[10.5px] text-black/40 tabular-nums dark:text-white/40">
+                  {item.width}×{item.height} px{fullImage ? '' : ' · 缩略图'}
+                </div>
               </div>
             ) : color ? (
               <div className="space-y-2">

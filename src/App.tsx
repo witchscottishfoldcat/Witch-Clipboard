@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import type { ItemKind, ListQuery } from '@shared/types'
+import type { ItemKind, ListQuery, PasteOutcome } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems, useStats, useTags } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
@@ -10,6 +10,15 @@ import { ItemList } from '@/components/ItemList'
 import { PreviewPane } from '@/components/PreviewPane'
 import { Footer } from '@/components/Footer'
 import { SettingsSheet } from '@/components/SettingsSheet'
+import { Toast, type ToastMessage } from '@/components/Toast'
+
+const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
+  'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
+  'no-target': '已复制，但没记录到目标窗口，请手动 Ctrl+V',
+  'focus-failed': '已复制，但切不回原窗口，请手动 Ctrl+V',
+  'send-failed': '已复制，模拟按键失败，请手动 Ctrl+V',
+  'not-found': '这条记录已经不存在了',
+}
 
 export default function App() {
   useTheme()
@@ -20,8 +29,12 @@ export default function App() {
   const [pinnedOnly, setPinnedOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [hotkey, setHotkey] = useState('Alt+V')
+  const [toast, setToast] = useState<ToastMessage | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const toastSeq = useRef(0)
 
   const query = useMemo<ListQuery>(() => ({ q, kind, tag, pinnedOnly }), [q, kind, tag, pinnedOnly])
   const { items, total, loading } = useItems(query)
@@ -30,6 +43,19 @@ export default function App() {
 
   const selected = items.find((it) => it.id === selectedId) ?? null
   const index = items.findIndex((it) => it.id === selectedId)
+  const filtered = Boolean(q || kind || tag || pinnedOnly)
+
+  const showToast = useCallback((text: string, tone: 'ok' | 'warn' = 'ok') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ id: ++toastSeq.current, text, tone })
+    toastTimer.current = setTimeout(() => setToast(null), tone === 'warn' ? 3600 : 1800)
+  }, [])
+
+  const loadHotkey = useCallback(() => {
+    void api.getSettings().then((s) => setHotkey(s.hotkey))
+  }, [])
+
+  useEffect(() => loadHotkey(), [loadHotkey])
 
   // 结果变化后保证有选中项
   useEffect(() => {
@@ -59,8 +85,22 @@ export default function App() {
     inputRef.current?.focus()
   }, [])
 
-  const paste = useCallback((id: number) => void api.paste(id), [])
-  const copy = useCallback((id: number) => void api.copy(id), [])
+  const paste = useCallback(
+    (id: number) => {
+      void api.paste(id).then((r) => {
+        if (!r.ok) showToast(PASTE_FAILURE_TEXT[r.reason ?? 'send-failed'], 'warn')
+      })
+    },
+    [showToast],
+  )
+
+  const copy = useCallback(
+    (id: number) => {
+      void api.copy(id).then(() => showToast('已复制到剪贴板'))
+    },
+    [showToast],
+  )
+
   const togglePin = useCallback((id: number) => void api.togglePin(id), [])
   const remove = useCallback((id: number) => void api.remove(id), [])
   const setItemTags = useCallback((id: number, t: string[]) => void api.setTags(id, t), [])
@@ -77,7 +117,6 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      // Esc：先清搜索，再收面板
       if (e.key === 'Escape') {
         if (settingsOpen) setSettingsOpen(false)
         else if (q) setQ('')
@@ -153,6 +192,12 @@ export default function App() {
           e.preventDefault()
           togglePin(selectedId)
         }
+        return
+      }
+      // 用 e.code：中文输入法激活时 e.key 拿不到逗号
+      if (e.ctrlKey && (e.code === 'Comma' || e.key === ',')) {
+        e.preventDefault()
+        setSettingsOpen(true)
       }
     }
 
@@ -189,6 +234,8 @@ export default function App() {
           onPaste={paste}
           onTogglePin={togglePin}
           loading={loading}
+          libraryEmpty={!filtered && (stats?.total ?? 0) === 0}
+          hotkey={hotkey}
         />
         <PreviewPane
           item={selected}
@@ -202,11 +249,17 @@ export default function App() {
 
       <Footer count={items.length} total={stats?.total ?? total} />
 
+      <Toast message={toast} />
+
       <AnimatePresence>
         {settingsOpen && (
           <SettingsSheet
-            onClose={() => setSettingsOpen(false)}
+            onClose={() => {
+              setSettingsOpen(false)
+              loadHotkey()
+            }}
             onCleared={() => setSettingsOpen(false)}
+            onToast={showToast}
           />
         )}
       </AnimatePresence>

@@ -10,6 +10,7 @@ const KEYS: [string, string][] = [
   ['Ctrl+C', '复制'],
   ['Ctrl+P', '置顶'],
   ['Del', '删除'],
+  ['Ctrl+,', '设置'],
   ['Esc', '收起'],
 ]
 

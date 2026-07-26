@@ -12,9 +12,12 @@ const api: ZtbApi = {
   clearAll: () => ipcRenderer.invoke('items:clear'),
   copy: (id) => ipcRenderer.invoke('items:copy', id),
   paste: (id) => ipcRenderer.invoke('items:paste', id),
+  imageDataUrl: (id) => ipcRenderer.invoke('items:image', id),
   hidePanel: () => ipcRenderer.invoke('panel:hide'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:save', patch),
+  security: () => ipcRenderer.invoke('app:security'),
+  openDataDir: () => ipcRenderer.invoke('app:openDataDir'),
 
   onChanged: (cb) => {
     const handler = (): void => cb()

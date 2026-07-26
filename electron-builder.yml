@@ -1,0 +1,40 @@
+appId: com.ztb.clipboard
+productName: ZTB
+copyright: ZTB 粘贴板
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  # 托盘图标和窗口图标运行时要读，必须打进 asar
+  - resources/icon.png
+  - resources/tray.png
+  # 原生模块的编译中间产物和测试扩展没必要跟着安装包走
+  - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/obj*/**'
+  - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/test_extension.node'
+  - '!node_modules/better-sqlite3-multiple-ciphers/{deps,src,build/deps}/**'
+  - '!node_modules/better-sqlite3-multiple-ciphers/build/*.{vcxproj,vcxproj.filters,sln,mk,gypi}'
+
+# 原生模块不能放在 asar 里
+asarUnpack:
+  - '**/*.node'
+
+win:
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ZTB 粘贴板
+  artifactName: ZTB-${version}-setup.${ext}
+  # 卸载时保留用户数据目录，剪贴板历史不该被安装程序删掉
+  deleteAppDataOnUninstall: false

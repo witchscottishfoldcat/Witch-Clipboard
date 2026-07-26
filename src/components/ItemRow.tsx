@@ -99,9 +99,9 @@ export const ItemRow = memo(function ItemRow({
           {item.preview || <span className="italic opacity-50">（空白内容）</span>}
         </div>
 
-        {item.kind === 'image' && (
-          <div className="text-[10.5px] text-black/35 tabular-nums dark:text-white/35">
-            {item.width}×{item.height}
+        {item.sourceApp && (
+          <div className="truncate text-[10.5px] text-black/32 dark:text-white/32">
+            {item.sourceApp}
           </div>
         )}
       </div>

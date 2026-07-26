@@ -1,9 +1,20 @@
-import type { ZtbApi } from '@shared/types'
+import type { Settings, ZtbApi } from '@shared/types'
 
 declare global {
   interface Window {
     ztb?: ZtbApi
   }
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  hotkey: 'Alt+V',
+  maxItems: 2000,
+  maxDays: 30,
+  skipSensitive: true,
+  sensitiveApps: [],
+  hideAfterPaste: true,
+  autoLaunch: false,
+  theme: 'system',
 }
 
 /** 纯浏览器里打开时（没有 preload）用的空实现，避免整页崩掉 */
@@ -16,25 +27,19 @@ const fallback: ZtbApi = {
   remove: async () => {},
   clearAll: async () => {},
   copy: async () => {},
-  paste: async () => {},
+  paste: async () => ({ ok: false, reason: 'no-native' }),
+  imageDataUrl: async () => null,
   hidePanel: async () => {},
-  getSettings: async () => ({
-    hotkey: 'Alt+V',
-    maxItems: 2000,
-    maxDays: 30,
-    skipSensitive: true,
-    hideAfterPaste: true,
-    theme: 'system',
+  getSettings: async () => DEFAULT_SETTINGS,
+  saveSettings: async (patch) => ({ ...DEFAULT_SETTINGS, ...patch }),
+  security: async () => ({
+    osProtected: false,
+    dbEncrypted: false,
+    nativeAvailable: false,
+    memoryFallback: true,
+    dataDir: '',
   }),
-  saveSettings: async (patch) => ({
-    hotkey: 'Alt+V',
-    maxItems: 2000,
-    maxDays: 30,
-    skipSensitive: true,
-    hideAfterPaste: true,
-    theme: 'system',
-    ...patch,
-  }),
+  openDataDir: async () => {},
   onChanged: () => () => {},
   onPanelShown: () => () => {},
 }

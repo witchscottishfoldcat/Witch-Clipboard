@@ -1,60 +1,87 @@
 # ZTB · 粘贴板
 
-本地优先的 Windows 剪贴板管理器。托盘常驻，`Alt+V` 唤出面板，文字与图片持久化、可搜索、可打标签。
+本地优先的 Windows 剪贴板管理器。托盘常驻，`Alt+V` 唤出面板，文字与图片自动入库、可搜索、可打标签，数据加密落盘。
 
 ## 运行
 
 ```bash
 npm install          # 会自动为 Electron 重建原生模块
 npm run dev          # 开发模式（面板会自动亮出来）
+npm run selftest     # 在真实 Electron 里跑存储层自检（41 项断言）
 npm run typecheck    # 类型检查
-npm run build        # 打包三端产物到 out/
-npm run icons        # 重新生成图标与演示图片
+npm run build        # 构建 out/ 产物
+npm run dist         # 打 NSIS 安装包到 release/
+npm run icons        # 重新生成图标
 ```
 
 > Electron 二进制若下载失败，用镜像补装：
 > `$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; node node_modules/electron/install.js`
+> 打包时若下载工具链失败：`$env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'`
 
 ## 键位
 
 | 键 | 作用 |
 | --- | --- |
-| `Alt+V` | 唤出 / 收起面板（全局） |
+| `Alt+V` | 唤出 / 收起面板（全局，可在设置里改） |
 | 直接打字 | 搜索 |
-| `↑` `↓` / `PgUp` `PgDn` | 移动选中项 |
-| `Enter` | 粘贴选中项 |
+| `↑` `↓` / `PgUp` `PgDn` / `Home` `End` | 移动选中项 |
+| `Enter` | 粘贴选中项到刚才那个窗口 |
 | `Alt+1…9` | 快贴列表前 9 条 |
-| `Ctrl+C` | 复制到剪贴板（不粘贴） |
+| `Ctrl+C` | 只复制到剪贴板，不粘贴 |
 | `Ctrl+P` | 置顶 / 取消置顶 |
 | `Del` | 删除 |
+| `Ctrl+,` | 打开设置（中文输入法激活时可能被 IME 吞掉，用齿轮按钮） |
 | `Esc` | 先清搜索词，再收起面板 |
 
 ## 架构
 
 ```
 electron/
-  main/      主进程：窗口、托盘、热键、IPC、仓库、粘贴回写
+  main/      窗口、托盘、热键、IPC、剪贴板监听、粘贴回写、Win32 绑定、自检
+  data/      加密、blob 仓库、SQLite（建表/迁移）、仓库实现、保留策略
   preload/   contextBridge 白名单，渲染进程拿不到 node
   shared/    三方共用的类型契约与内容分类
 src/         渲染进程（React 19 + Tailwind 4 + motion）
 scripts/     零依赖 PNG 图标生成器
 ```
 
-关键约定：`ItemStore` 是一个接口（`electron/main/store.ts`）。P0 用 `MemoryStore`（内存 + 演示数据），
-P1 换成 SQLite 实现同一接口，IPC 与渲染层不需要改动。
+### 几个关键取舍
 
-## 路线图
+- **剪贴板监听**用 Win32 `GetClipboardSequenceNumber` 判断有没有变化。这个调用极便宜，
+  所以 400ms 轮询在空闲时几乎不耗 CPU——不用每次都去解码剪贴板内容。拿不到原生能力时退化成内容指纹比对。
+- **搜索**走 FTS5，分词器选 `trigram`。默认的 `unicode61` 切不开中文，中文子串搜不到；
+  trigram 可以，但最短 3 字符，所以 1~2 字的关键词回退到转义后的 `LIKE` 扫描。
+- **图片**内容寻址：`blobs/<hash 前 2 位>/<hash>.bin`，同一张图只存一份。
+  数据库里只放缩略图，原图按需解密。
+- **加密**：主密钥 32 字节随机，用 `safeStorage`（Windows DPAPI）保护后落盘；
+  数据库走 SQLCipher，图片走 AES-256-GCM，两者用不同的派生子密钥。
+- **自动粘贴**用 `keybd_event` 而不是 `SendInput`：koffi 里描述 INPUT 联合体成本高，
+  收益为零。发 Ctrl+V 之前会先释放残留的修饰键，否则 `Alt+V` 唤出面板时按着的 Alt
+  会让目标程序收到 Ctrl+Alt+V。
+- **数据库打不开时**（master.key 丢了 / 换了 Windows 账户）不静默丢数据：弹窗让用户选，
+  旧库改名成 `ztb.db.locked-<时间戳>` 保留。真的建不了库时降级到内存存储，界面会明确标出来。
 
-- [x] **P0 骨架** — 无边框亚克力面板、托盘、全局热键、IPC、演示数据、键盘全操作、原生模块重建跑通
-- [ ] **P1 采集与存储** — 剪贴板轮询、SQLite + FTS5、内容寻址图片仓库、sha256 去重、缩略图
-- [ ] **P2 界面完善** — 已在 P0 一并完成主体；剩余：图片多尺寸预览、标签管理页
-- [ ] **P3 粘贴回写** — koffi + Win32 `SendInput`，还原前台窗口后模拟 `Ctrl+V`
-- [ ] **P4 加密与清理** — safeStorage 主密钥、SQLCipher、blob AES-256-GCM、敏感内容跳过、保留策略
-- [ ] **P5 打包** — electron-builder NSIS 安装包、开机自启、图标
+## 安全边界（诚实说明）
 
-## 当前限制（P0）
+- 加密防的是「别人拿到你的 db 文件后直接读内容」。主密钥绑定当前 Windows 用户账户，
+  同一账户下运行的任何程序都能解密——这挡不住已经在你账户里跑的恶意软件。
+- 敏感内容跳过基于两条：剪贴板的 `ExcludeClipboardContentFromMonitorProcessing` 等标记
+  （主流密码管理器会写），以及来源进程名黑名单。**不是 100% 可靠**：不写标记又不在黑名单里的
+  程序，复制的内容照样会入库。别把它当成防泄漏机制。
+- 卸载不会删数据目录（`%APPDATA%\ztb`），需要彻底清除请手动删。
 
-- 数据在内存里，**重启会重置**；SQLite 持久化在 P1。
-- 还没有监听系统剪贴板，列表是演示数据；采集在 P1。
-- `Enter` / 粘贴按钮目前只把内容写进系统剪贴板，**不会自动 Ctrl+V**；自动粘贴在 P3。
-- 设置页只有外观、清空历史；热键自定义与保留策略在 P4。
+## 进度
+
+- [x] **P0 骨架** — 无边框亚克力面板、托盘、全局热键、IPC、键盘全操作
+- [x] **P1 采集与存储** — 剪贴板监听、SQLite + FTS5(trigram)、内容寻址图片仓库、sha256 去重、缩略图
+- [x] **P2 界面** — 虚拟列表、搜索、类型/标签筛选、置顶、原图预览、操作反馈、空库引导
+- [x] **P3 粘贴回写** — 焦点还原 + 模拟 Ctrl+V（已在记事本实测通过，含中文）
+- [x] **P4 加密与清理** — DPAPI 主密钥、SQLCipher、blob AES-256-GCM、敏感跳过、保留策略、完整设置页
+- [x] **P5 打包** — electron-builder NSIS 安装包、开机自启
+
+## 已知限制
+
+- 只做了 Windows。`electron/main/win32.ts` 在非 Windows 上整体降级：没有序列号监听、没有自动粘贴。
+- 文件（`kind: 'files'`）类型的剪贴板还没采集，只有文字和图片；类型契约里已经留好位置。
+- 渲染包约 950 KB（React + motion 为主）。本地加载无感，没做拆包。
+- 没有单元测试框架，验证靠 `npm run selftest`（真实 Electron 运行时里的 41 项断言）。

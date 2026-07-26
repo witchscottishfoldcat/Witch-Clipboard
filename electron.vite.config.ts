@@ -29,8 +29,12 @@ export default defineConfig({
       alias: {
         '@': resolve(__dirname, 'src'),
         '@shared': resolve(__dirname, 'electron/shared'),
+        // 界面里的 logo 直接用 resources 下的母版 SVG，不在 src 里再放一份
+        '@res': resolve(__dirname, 'resources'),
       },
     },
+    // Vite 的 root 是 src/，要显式允许它读到项目根下的 resources/
+    server: { fs: { allow: [resolve(__dirname)] } },
     build: {
       rollupOptions: { input: resolve(__dirname, 'src/index.html') },
     },

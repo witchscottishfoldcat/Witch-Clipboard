@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Clipboard, Maximize2, Search, X } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 import type { ItemKind, ListQuery, PasteOutcome } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems } from '@/hooks/useItems'
@@ -125,9 +126,7 @@ export default function MiniApp() {
     <div className="relative flex h-full flex-col overflow-hidden bg-white/78 text-black dark:bg-[#0b0b12]/76 dark:text-white">
       {/* 顶栏：可拖动，右侧是展开和关闭 */}
       <div className="drag-region flex items-center gap-2 px-2.5 pt-2.5 pb-1.5">
-        <div className="no-drag flex size-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-fuchsia-500">
-          <Clipboard className="size-3.5 text-white" strokeWidth={2.5} />
-        </div>
+        <Logo className="no-drag size-6 shrink-0 rounded-lg" />
 
         {searching ? (
           <div className="no-drag relative flex-1">

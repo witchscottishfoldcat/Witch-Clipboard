@@ -5,3 +5,11 @@ release/
 *.log
 .DS_Store
 .vite/
+
+# 构建中间产物
+*.tsbuildinfo
+
+# IDE 与本机产物
+.idea/
+.vscode/
+probe-result.txt

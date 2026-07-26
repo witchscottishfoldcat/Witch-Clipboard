@@ -4,36 +4,23 @@
 
 ## [未发布]
 
+暂无。
+
+## [0.1.0] - 2026-07-26
+
+首个发布版本。Windows 剪贴板管理器：托盘常驻、加密持久化、自动粘贴。
+
 ### 新增
+
+**外观**
 
 - **Logo**：剪贴板的「夹子」做成巫师帽、「板面」做成猫脸，一个形状同时读出剪贴板、猫、
   巫师三层意思。母版是 `resources/logo.svg`，另有托盘专用简化版 `logo-tray.svg`
   （去掉胡须/鼻子/帽带、帽子和眼睛放大一档，因为 16~32px 下细节只会糊成一团）。
-- 图标生成改为「SVG 母版 → Chromium 光栅化 → PNG」，不再手写像素绘制，
-  设计源只有一份。`npm run icons` 现在用 Electron 跑（`scripts/make-icons.cjs`），
-  画到 canvas 取 `toDataURL` 拿到真正带 alpha 的位图，不用引 sharp/resvg。
-- 产出 `tray@2x.png`，`nativeImage` 会按 `@2x` 约定在高分屏上自动挑它。
-
-### 变更
-
-- 项目改名为 **WitchCat Clipboard**（原 ZTB）。安装包、窗口标题、托盘提示、appId
-  （`com.witchcat.clipboard`）全部更新。
-- 数据目录固定为 `%APPDATA%\WitchCat-Clipboard`，不再随「开发 / 打包」变化；
-  数据库文件更名为 `clipboard.db`。
-- 启动时自动从旧目录（`%APPDATA%\ztb`）迁移数据库、密钥、设置和图片仓库，**只搬不删**，
-  任何一步失败都只记日志，最坏情况是从空库开始、旧数据仍完整保留在旧目录。迁移只执行一次，
-  完成后在数据目录留下 `migrated-from-ztb.txt` 说明数据来自哪里。
-- 迁移会连带复制 profile 的 `Local State`：`safeStorage` 在 Windows 上的密钥存在这个文件里
-  （再由 DPAPI 保护），换数据目录等于换了一把随机密钥，不带上它搬过去的 `master.key` 就解不开。
-- 落盘格式的魔数（`ZTBK` / `ZTB1`）保持不变，改名前存下来的加密数据仍然能读。
-- 关闭自动收起的环境变量由 `ZTB_NO_AUTOHIDE` 改为 `WCC_NO_AUTOHIDE`。
-- 渲染进程的桥接对象由 `window.ztb` 改为 `window.witchcat`，类型 `ZtbApi` 改为 `ClipboardApi`。
-
-## [0.1.0] - 2026-07-26
-
-首个可用版本。Windows 剪贴板管理器：托盘常驻、加密持久化、自动粘贴。
-
-### 新增
+- 图标由 SVG 母版经 Chromium 光栅化生成（`npm run icons`），设计源只有一份，
+  不引 sharp/resvg 这类需要编译的依赖；产出 `tray@2x.png` 供高分屏自动挑选。
+- 两个面板左上角的标识也用同一个 logo（内联 `resources/logo-tray.svg`，不在 `src` 下
+  再放一份设计源），不再是通用剪贴板图标。
 
 **采集与存储**
 
@@ -72,6 +59,12 @@
 
 **工程**
 
+- 数据目录固定为 `%APPDATA%\WitchCat-Clipboard`，不随「开发 / 打包」变化——Electron 默认的
+  userData 路径来自应用名，开发取 `package.json` 的 `name`、打包取 `productName`，
+  两者不一致就会读到两个不同的库。
+- 从早期内部版本（曾叫 ZTB）的目录一次性迁移数据，**只搬不删**，失败只记日志；迁移会连带
+  复制 profile 的 `Local State`——`safeStorage` 在 Windows 上的密钥存在那个文件里，
+  换数据目录等于换了一把随机密钥，不带上它搬过去的 `master.key` 就解不开。
 - 数据库无法解密时不静默丢数据：弹窗让用户决定，旧库改名为 `clipboard.db.locked-<时间戳>` 保留；
   实在建不了库就降级到内存存储，并在界面上标明「重启会丢」。
 - `npm run selftest`：在真实 Electron 运行时里跑 57 项断言。

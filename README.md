@@ -1,8 +1,20 @@
-<img src="resources/icon-256.png" width="120" alt="WitchCat Clipboard" align="right" />
+<p align="center">
+  <img src="resources/icon-256.png" width="128" alt="WitchCat Clipboard" />
+</p>
 
-# WitchCat Clipboard
+<h1 align="center">WitchCat Clipboard</h1>
 
-**Windows 剪贴板管理器。托盘常驻，单击弹出预览，`Alt+V` 唤出完整面板；文字、图片、文件自动入库，本地加密存储，可搜索可标签，选中回车就贴回刚才那个窗口。**
+<p align="center">
+  <b>Windows 剪贴板管理器</b><br />
+  托盘常驻，单击弹出预览，<code>Alt+V</code> 唤出完整面板<br />
+  文字、图片、文件自动入库，本地加密存储，可搜索可标签，选中回车就贴回刚才那个窗口
+</p>
+
+<p align="center">
+  <a href="https://github.com/witchscottishfoldcat/WitchCat-Clipboard/releases/latest">下载最新版</a>
+  ·
+  <a href="./CHANGELOG.md">更新日志</a>
+</p>
 
 复制过的东西不该丢在一个只记得最后一次的剪贴板里。这个项目做的就是：把你复制过的一切留下来、
 让你三秒内找回它、并且这些内容只留在你自己的机器上——数据库用 SQLCipher 加密，主密钥由
@@ -25,14 +37,16 @@ Windows DPAPI 绑定到你的用户账户，没有账号、没有云、没有联
 
 ## 安装 / 运行
 
-安装包在 `release/WitchCat-Clipboard-0.1.0-setup.exe`（NSIS，可选安装位置，卸载不删数据）。
+从 [Releases](https://github.com/witchscottishfoldcat/WitchCat-Clipboard/releases/latest) 下载
+`WitchCat-Clipboard-<版本>-setup.exe`（NSIS，可选安装位置，卸载不删数据）。
+自己构建的产物在 `release/` 下。
 
 从源码跑：
 
 ```bash
 npm install          # 会自动为 Electron 重建原生模块
 npm run dev          # 开发模式（面板会自动亮出来）
-npm run selftest     # 在真实 Electron 里跑 57 项断言
+npm run selftest     # 在真实 Electron 里跑 69 项断言
 npm run typecheck    # 类型检查
 npm run build        # 构建 out/ 产物
 npm run dist         # 打 NSIS 安装包到 release/
@@ -114,12 +128,19 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
 | `blobs/<前2位>/<sha256>.bin` | AES-256-GCM 加密的原图，内容寻址、自动去重 |
 | `master.key` | 主密钥，用 Windows DPAPI 封装（绑定当前用户账户） |
 | `settings.json` | 界面与行为设置，明文 |
+| `update.log` | 更新检查的日志，出问题时的唯一线索（上限 256 KB） |
 
 从旧版本（叫 ZTB 时）升级会自动把 `%APPDATA%\ztb` 里的数据搬过来，只搬不删。
 
 ## Logo
 
-<img src="resources/icon-256.png" width="88" alt="logo" />
+<p>
+  <img src="resources/icon-256.png" width="96" alt="主图标" />
+  &nbsp;&nbsp;
+  <img src="resources/tray@2x.png" width="64" alt="托盘图标（简化版）" />
+</p>
+
+左边是主图标，右边是托盘专用的简化版——去掉了胡须、鼻子和帽带，帽子和眼睛放大一档。
 
 一个形状同时读出三层意思：**剪贴板的「夹子」就是巫师帽，「板面」就是猫脸**。
 所以它既是剪贴板、又是猫、又带着巫师的帽子，正好对上 WitchCat 这个名字。
@@ -195,7 +216,7 @@ scripts/     零依赖 PNG 图标生成器
 
 ## 验证
 
-没有引入测试框架，验证集中在 `npm run selftest`——它在**真实 Electron 运行时**里跑 57 项断言，
+没有引入测试框架，验证集中在 `npm run selftest`——它在**真实 Electron 运行时**里跑 69 项断言，
 覆盖加密往返与篡改检测、内容分类、去重、FTS/LIKE 搜索与转义、标签、图片解密一致性、保留策略与
 blob 回收、`CF_HDROP` 真实往返、托盘单击竞态、点到别处收起的全部分支。
 

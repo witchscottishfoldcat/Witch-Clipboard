@@ -1,0 +1,79 @@
+import { useEffect, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ClipboardList } from 'lucide-react'
+import type { ClipItem } from '@shared/types'
+import { ItemRow } from './ItemRow'
+
+interface Props {
+  items: ClipItem[]
+  selectedId: number | null
+  onSelect: (id: number) => void
+  onPaste: (id: number) => void
+  onTogglePin: (id: number) => void
+  loading: boolean
+}
+
+const ROW = 72 // 68px 行高 + 4px 间隔
+
+export function ItemList({ items, selectedId, onSelect, onPaste, onTogglePin, loading }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const virt = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW,
+    overscan: 6,
+  })
+
+  // 键盘移动选中项时保证可见。
+  // 只在选中项真的变了才滚动——虚拟列表每次滚动都会重渲染，
+  // 无条件调用会把用户用滚轮浏览的位置强行拽回选中项。
+  const index = items.findIndex((it) => it.id === selectedId)
+  const lastIndex = useRef(-1)
+  useEffect(() => {
+    if (index >= 0 && index !== lastIndex.current) {
+      lastIndex.current = index
+      virt.scrollToIndex(index, { align: 'auto' })
+    }
+  }, [index, virt])
+
+  if (!loading && items.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-black/4 dark:bg-white/6">
+          <ClipboardList className="size-6 text-black/25 dark:text-white/25" />
+        </div>
+        <div className="text-[13px] text-black/45 dark:text-white/45">没有匹配的记录</div>
+        <div className="text-[11px] text-black/30 dark:text-white/30">
+          换个关键词，或清掉上面的筛选条件
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 pb-2">
+      <div className="relative w-full" style={{ height: virt.getTotalSize() }}>
+        {virt.getVirtualItems().map((row) => {
+          const item = items[row.index]
+          return (
+            <div
+              key={item.id}
+              className="absolute top-0 left-0 w-full pb-1"
+              style={{ height: ROW, transform: `translateY(${row.start}px)` }}
+            >
+              <ItemRow
+                item={item}
+                selected={item.id === selectedId}
+                hotIndex={row.index < 9 ? row.index + 1 : null}
+                onSelect={() => onSelect(item.id)}
+                onPaste={() => onPaste(item.id)}
+                onTogglePin={() => onTogglePin(item.id)}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

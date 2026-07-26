@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "composite": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["./electron/shared/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "electron/shared/**/*.ts", "electron/preload/**/*.ts"]
+}

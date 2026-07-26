@@ -1,0 +1,42 @@
+{
+  "name": "ztb",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZTB - 本地优先的剪贴板管理器",
+  "author": "witchscottishfoldcat",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "icons": "node scripts/make-icons.mjs",
+    "rebuild": "electron-rebuild -f -w better-sqlite3-multiple-ciphers",
+    "dist": "electron-vite build && electron-builder --win",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.8",
+    "better-sqlite3-multiple-ciphers": "^12.11.1",
+    "koffi": "^3.1.2",
+    "lucide-react": "^1.27.0",
+    "motion": "^12.42.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

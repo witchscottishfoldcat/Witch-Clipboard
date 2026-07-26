@@ -13,7 +13,9 @@ export function createTray(): Tray {
   if (image.isEmpty()) console.error(`[tray] 图标加载失败：${iconPath}`)
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
 
-  tray.setToolTip(`ZTB 粘贴板 · 单击预览 · 双击完整面板 · ${currentHotkey() ?? '热键未注册'}`)
+  tray.setToolTip(
+    `WitchCat 粘贴板 · 单击预览 · 双击完整面板 · ${currentHotkey() ?? '热键未注册'}`,
+  )
 
   // 单击默认弹迷你预览面板；设置里可以改成直接开完整面板。
   // toggle 函数内部自带「刚被失焦收起」的冷却判断
@@ -40,7 +42,7 @@ export function createTray(): Tray {
       },
     },
     { type: 'separator' },
-    { label: `ZTB v${app.getVersion()}`, enabled: false },
+    { label: `WitchCat Clipboard v${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     {
       label: '退出',

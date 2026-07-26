@@ -9,6 +9,7 @@ import { startWatcher, type WatcherHandle } from './watcher'
 import { SqliteStore } from '../data/store-sqlite'
 import { startRetention } from '../data/retention'
 import { getSettings } from './settings'
+import { migrateLegacyData, useCanonicalUserData } from './paths'
 
 if (process.argv.includes('--self-test')) {
   // 自检模式：跑断言后退出，不注册热键
@@ -20,18 +21,22 @@ if (process.argv.includes('--self-test')) {
       app.exit(1)
     })
 } else {
+  // 单实例锁依赖 userData 路径，所以要先把路径定下来
+  useCanonicalUserData()
+
   // 只允许一个实例；第二次启动等于唤出面板
   const gotLock = app.requestSingleInstanceLock()
   if (!gotLock) {
     app.exit(0)
   } else {
+    migrateLegacyData()
     app.on('second-instance', () => showPanel())
     bootstrap()
   }
 }
 
 function bootstrap(): void {
-  app.setAppUserModelId('com.ztb.clipboard')
+  app.setAppUserModelId('com.witchcat.clipboard')
 
   let store: ItemStore | null = null
   let watcher: WatcherHandle | null = null
@@ -40,7 +45,7 @@ function bootstrap(): void {
   app.whenReady().then(startup).catch((err) => {
     // 启动链路里的异常不能静默：吞掉的话表现就是「托盘有图标但面板永远不出来」
     console.error('[main] 启动失败：', err)
-    dialog.showErrorBox('ZTB 启动失败', String((err as Error)?.stack ?? err))
+    dialog.showErrorBox('WitchCat 粘贴板启动失败', String((err as Error)?.stack ?? err))
     app.exit(1)
   })
 
@@ -68,7 +73,9 @@ function bootstrap(): void {
 
     const ok = registerHotkey()
     createTray()
-    updateTrayTooltip(ok ? `ZTB 粘贴板 · ${currentHotkey()}` : 'ZTB 粘贴板 · 热键被占用')
+    updateTrayTooltip(
+      ok ? `WitchCat 粘贴板 · ${currentHotkey()}` : 'WitchCat 粘贴板 · 热键被占用',
+    )
 
     // 开机自启的设置以配置为准，避免用户在系统里改过之后两边不一致
     const { autoLaunch } = getSettings()

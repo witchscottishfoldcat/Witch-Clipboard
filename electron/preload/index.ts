@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ListQuery, Settings, ZtbApi } from '@shared/types'
+import type { ClipboardApi, ListQuery, Settings } from '@shared/types'
 
 /** 渲染进程只能看到这份白名单，没有 node / 没有裸 ipcRenderer */
-const api: ZtbApi = {
+const api: ClipboardApi = {
   list: (query: ListQuery) => ipcRenderer.invoke('items:list', query),
   stats: () => ipcRenderer.invoke('items:stats'),
   tags: () => ipcRenderer.invoke('items:tags'),
@@ -33,4 +33,4 @@ const api: ZtbApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('ztb', api)
+contextBridge.exposeInMainWorld('witchcat', api)

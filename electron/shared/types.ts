@@ -92,7 +92,7 @@ export interface SecurityInfo {
 }
 
 /** contextBridge 暴露给渲染进程的全部能力 */
-export interface ZtbApi {
+export interface ClipboardApi {
   list(query: ListQuery): Promise<ListResult>
   stats(): Promise<Stats>
   tags(): Promise<string[]>

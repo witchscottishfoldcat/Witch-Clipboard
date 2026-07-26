@@ -51,7 +51,7 @@ export function createPanel(): BrowserWindow {
     }
   })
 
-  // 点到别处就收起（ZTB_NO_AUTOHIDE=1 可关掉，方便开发时截图）
+  // 点到别处就收起（WCC_NO_AUTOHIDE=1 可关掉，方便开发时截图）
   panel.on('blur', () => {
     if (autoHideDisabled()) return
     if (panel?.webContents.isDevToolsFocused()) return

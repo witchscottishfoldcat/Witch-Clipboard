@@ -1,8 +1,8 @@
-import type { Settings, ZtbApi } from '@shared/types'
+import type { ClipboardApi, Settings } from '@shared/types'
 
 declare global {
   interface Window {
-    ztb?: ZtbApi
+    witchcat?: ClipboardApi
   }
 }
 
@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: Settings = {
 }
 
 /** 纯浏览器里打开时（没有 preload）用的空实现，避免整页崩掉 */
-const fallback: ZtbApi = {
+const fallback: ClipboardApi = {
   list: async () => ({ items: [], total: 0 }),
   stats: async () => ({ total: 0, pinned: 0, images: 0, bytes: 0 }),
   tags: async () => [],
@@ -47,5 +47,5 @@ const fallback: ZtbApi = {
   onPanelShown: () => () => {},
 }
 
-export const api: ZtbApi = window.ztb ?? fallback
-export const isDesktop = Boolean(window.ztb)
+export const api: ClipboardApi = window.witchcat ?? fallback
+export const isDesktop = Boolean(window.witchcat)

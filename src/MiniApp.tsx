@@ -202,7 +202,7 @@ export default function MiniApp() {
               <div className="text-[10px] leading-4 text-black/28 dark:text-white/28">
                 复制任何文字、图片或文件，
                 <br />
-                ZTB 会自动收进来
+                WitchCat 会自动收进来
               </div>
             )}
           </div>

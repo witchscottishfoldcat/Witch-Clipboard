@@ -61,7 +61,7 @@ END;
 `
 
 export function dbPath(): string {
-  return join(app.getPath('userData'), 'ztb.db')
+  return join(app.getPath('userData'), 'clipboard.db')
 }
 
 function openEncrypted(file: string): Db {
@@ -94,12 +94,12 @@ export function openDb(): Db {
 
     const choice = dialog.showMessageBoxSync({
       type: 'error',
-      title: 'ZTB 无法打开数据库',
+      title: 'WitchCat 粘贴板无法打开数据库',
       message: '现有的剪贴板数据库无法解密。',
       detail:
         `原因：${message}\n\n` +
         '通常是 master.key 丢失或换了 Windows 用户账户。原库会被改名保留成 ' +
-        'ztb.db.locked-<时间戳>，不会删除。',
+        'clipboard.db.locked-<时间戳>，不会删除。',
       buttons: ['重建一个新数据库', '退出'],
       defaultId: 0,
       cancelId: 1,

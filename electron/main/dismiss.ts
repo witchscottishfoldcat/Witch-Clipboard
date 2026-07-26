@@ -12,8 +12,8 @@ const POLL_MS = 200
 /** 刚显示的这段时间不判定，等焦点交接完成 */
 const GRACE_MS = 500
 
-/** 设 ZTB_NO_AUTOHIDE=1 可以关掉自动收起，开发时截图方便 */
-const disabled = process.env['ZTB_NO_AUTOHIDE'] === '1'
+/** 设 WCC_NO_AUTOHIDE=1 可以关掉自动收起，开发时截图方便 */
+const disabled = process.env['WCC_NO_AUTOHIDE'] === '1'
 
 export function autoHideDisabled(): boolean {
   return disabled
@@ -43,7 +43,7 @@ export interface WatchOptions {
   /** 取当前前台窗口所属进程；返回 null 表示拿不到 */
   getPid?: () => number | null
   selfPid?: number
-  /** 忽略 ZTB_NO_AUTOHIDE，自检要测真实逻辑 */
+  /** 忽略 WCC_NO_AUTOHIDE，自检要测真实逻辑 */
   force?: boolean
 }
 

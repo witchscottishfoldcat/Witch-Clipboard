@@ -1,9 +1,18 @@
 {
-  "name": "ztb",
+  "name": "witchcat-clipboard",
   "version": "0.1.0",
   "private": true,
-  "description": "ZTB - 本地优先的剪贴板管理器",
-  "author": "witchscottishfoldcat",
+  "license": "UNLICENSED",
+  "description": "WitchCat Clipboard — Windows 剪贴板管理器：托盘常驻，Alt+V 唤出，文字/图片/文件自动入库，本地加密存储，可搜索可标签，选中即粘贴。",
+  "keywords": [
+    "clipboard",
+    "clipboard-manager",
+    "windows",
+    "electron",
+    "sqlcipher",
+    "剪贴板"
+  ],
+  "author": "witchscottishfoldcat <witchscottishfoldcat@outlook.com>",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

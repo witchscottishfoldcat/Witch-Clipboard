@@ -22,14 +22,14 @@ function check(name: string, ok: boolean, detail = ''): void {
 }
 
 export async function runSelfTest(): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), 'ztb-selftest-'))
+  const dir = mkdtempSync(join(tmpdir(), 'witchcat-selftest-'))
   app.setPath('userData', dir)
   // 自检不走 bootstrap，得自己挡住「最后一个窗口销毁就退出应用」的默认行为，
   // 否则销毁测试窗口之后进程会在下一个 await 处直接结束，后面的断言全都不会跑
   app.on('window-all-closed', () => {})
   await app.whenReady()
 
-  console.log(`\nZTB 自检 · 临时数据目录 ${dir}\n`)
+  console.log(`\nWitchCat Clipboard 自检 · 临时数据目录 ${dir}\n`)
 
   // 动态导入：必须在 setPath 之后，模块里会用到 userData
   const { sealBuffer, openBuffer, sha256, isOsProtected } = await import('../data/crypto')
@@ -57,7 +57,7 @@ export async function runSelfTest(): Promise<void> {
   check('URL', classify('https://example.com/a?b=1') === 'url')
   check('邮箱', classify('a.b@example.com') === 'email')
   check('颜色', classify('#8b5cf6') === 'color')
-  check('Windows 路径', classify('D:\\ADM\\ZTB\\package.json') === 'path')
+  check('Windows 路径', classify('D:\\ADM\\WitchCat\\package.json') === 'path')
   check('数字', classify('1234567890') === 'number')
   check('代码', classify('export const a = 1;\nfunction b() {\n  return a\n}') === 'code')
   check('普通中文不误判为代码', classify('今天下午三点开会，讨论剪贴板的保留策略') === 'plain')
@@ -188,7 +188,7 @@ export async function runSelfTest(): Promise<void> {
   check('孤儿 blob 已回收', blobs.listAll().length === 0)
 
   store.close()
-  check('数据库文件存在', existsSync(join(dir, 'ztb.db')))
+  check('数据库文件存在', existsSync(join(dir, 'clipboard.db')))
 
   // CF_HDROP 的写入是手搓 DROPFILES 结构体 + GlobalAlloc，最容易出错，做一次真实往返。
   // 注意：这一步会覆盖系统剪贴板，跑完会把原来的文本放回去。
@@ -199,7 +199,7 @@ export async function runSelfTest(): Promise<void> {
     console.log('  - 原生能力不可用，跳过')
   } else {
     const before = clipboard.readText()
-    const probe = [join(app.getAppPath(), 'resources', 'icon.png'), join(dir, 'ztb.db')]
+    const probe = [join(app.getAppPath(), 'resources', 'icon.png'), join(dir, 'clipboard.db')]
 
     check('写入文件列表', win32.writeClipboardFiles(probe))
     const readBack = win32.readClipboardFiles()

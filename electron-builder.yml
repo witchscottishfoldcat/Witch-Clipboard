@@ -1,6 +1,6 @@
-appId: com.ztb.clipboard
-productName: ZTB
-copyright: ZTB 粘贴板
+appId: com.witchcat.clipboard
+productName: WitchCat Clipboard
+copyright: WitchCat Clipboard
 
 directories:
   output: release
@@ -34,7 +34,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: ZTB 粘贴板
-  artifactName: ZTB-${version}-setup.${ext}
+  shortcutName: WitchCat 粘贴板
+  artifactName: WitchCat-Clipboard-${version}-setup.${ext}
   # 卸载时保留用户数据目录，剪贴板历史不该被安装程序删掉
   deleteAppDataOnUninstall: false

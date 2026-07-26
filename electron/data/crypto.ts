@@ -8,6 +8,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+// 落盘格式的魔数：保持不变，改了就读不了改名之前存下来的数据
 const MAGIC_KEYFILE = 'ZTBK'
 const MAGIC_BLOB = 'ZTB1'
 const IV_LEN = 12
@@ -80,7 +81,7 @@ export function sealBuffer(plain: Buffer): Buffer {
 
 export function openBuffer(sealed: Buffer): Buffer {
   if (sealed.subarray(0, 4).toString('ascii') !== MAGIC_BLOB) {
-    throw new Error('blob 头部不匹配，文件不是 ZTB 加密格式')
+    throw new Error('blob 头部不匹配，不是本程序的加密格式')
   }
   const iv = sealed.subarray(4, 4 + IV_LEN)
   const tag = sealed.subarray(4 + IV_LEN, 4 + IV_LEN + TAG_LEN)

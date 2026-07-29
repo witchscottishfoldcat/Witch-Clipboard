@@ -7,7 +7,7 @@ import { relativeTime } from '@/lib/format'
 interface Props {
   item: ClipItem
   selected: boolean
-  /** 1..9，用于 Alt+数字 快贴；超出范围为 null */
+  /** 1..9，用于全局数字快粘；超出范围为 null */
   hotIndex: number | null
   onSelect: () => void
   onPaste: () => void
@@ -124,7 +124,7 @@ export const ItemRow = memo(function ItemRow({
         </button>
       </div>
 
-      {/* Alt+数字 快贴角标 */}
+      {/* 全局数字快粘角标 */}
       {hotIndex !== null && (
         <span
           className={`flex size-5 shrink-0 items-center justify-center rounded-md border text-[10px] font-semibold tabular-nums transition ${

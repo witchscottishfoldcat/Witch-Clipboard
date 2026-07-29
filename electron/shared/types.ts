@@ -56,6 +56,8 @@ export interface Stats {
 export interface Settings {
   /** 面板全局热键 */
   hotkey: string
+  /** 全局快粘的修饰键；数字键固定为 1…9 */
+  quickPasteModifiers: string
   /** 最多保留条数，0 = 不限 */
   maxItems: number
   /** 最多保留天数，0 = 不限 */

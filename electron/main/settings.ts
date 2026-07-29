@@ -5,6 +5,7 @@ import type { Settings } from '@shared/types'
 
 const DEFAULTS: Settings = {
   hotkey: 'Alt+V',
+  quickPasteModifiers: 'Ctrl+Alt',
   maxItems: 2000,
   maxDays: 30,
   skipSensitive: true,

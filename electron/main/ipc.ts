@@ -1,13 +1,14 @@
-import { ipcMain, clipboard, nativeImage, shell, app, BrowserWindow } from 'electron'
+import { ipcMain, shell, app, BrowserWindow } from 'electron'
 import type { ListQuery, PasteOutcome, SecurityInfo, Settings } from '@shared/types'
 import type { ItemStore } from './store'
 import { MemoryStore } from './store'
 import { getSettings, saveSettings } from './settings'
 import { hidePanel, showPanel } from './window'
 import { getMini, hideMini, showMini } from './mini'
-import { registerHotkey } from './shortcuts'
+import { registerHotkey, registerQuickPaste } from './shortcuts'
 import { pasteToPreviousWindow } from './paste'
-import { hasNative, writeClipboardFiles } from './win32'
+import { hasNative } from './win32'
+import { writeItemToClipboard } from './item-clipboard'
 import { isOsProtected } from '../data/crypto'
 import { sweep } from '../data/retention'
 import {
@@ -28,40 +29,6 @@ export interface IpcDeps {
 
 function broadcast(channel: string): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel)
-}
-
-/**
- * 把某条记录写入系统剪贴板。
- * 写完把监听器的基线推到当前序列号，否则我们自己写进去的内容会被当成一次新的复制。
- */
-function writeToClipboard(deps: IpcDeps, id: number): boolean {
-  const item = deps.store.get(id)
-  if (!item) return false
-
-  if (item.kind === 'files') {
-    const paths = (item.text ?? '').split('\n').filter(Boolean)
-    if (paths.length === 0) return false
-    // 先试真正的文件格式，这样粘贴出来是文件本身；不行就退回粘路径文本
-    if (!writeClipboardFiles(paths)) {
-      console.warn('[ipc] CF_HDROP 写入失败，退回写路径文本')
-      clipboard.writeText(paths.join('\n'))
-    }
-  } else if (item.kind === 'image') {
-    const png = deps.store.imagePng(id)
-    if (!png) {
-      console.error(`[ipc] 条目 ${id} 的图片数据缺失`)
-      return false
-    }
-    const img = nativeImage.createFromBuffer(png)
-    if (img.isEmpty()) return false
-    clipboard.writeImage(img)
-  } else {
-    clipboard.writeText(item.text ?? '')
-  }
-
-  deps.store.touch(id)
-  deps.watcher?.syncAfterOwnWrite()
-  return true
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -92,12 +59,12 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   ipcMain.handle('items:copy', (_e, id: number) => {
-    writeToClipboard(deps, id)
+    writeItemToClipboard(deps, id)
     broadcast('items:changed')
   })
 
   ipcMain.handle('items:paste', async (event, id: number): Promise<PasteOutcome> => {
-    if (!writeToClipboard(deps, id)) return { ok: false, reason: 'not-found' }
+    if (!writeItemToClipboard(deps, id)) return { ok: false, reason: 'not-found' }
 
     const fromMini = BrowserWindow.fromWebContents(event.sender) === getMini()
     const hidden = getSettings().hideAfterPaste
@@ -144,9 +111,21 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:save', (_e, patch: Partial<Settings>) => {
     const before = getSettings()
-    const next = saveSettings(patch)
+    const requested = { ...before, ...patch }
 
-    if (next.hotkey !== before.hotkey) registerHotkey(next.hotkey)
+    if (requested.hotkey !== before.hotkey && !registerHotkey(requested.hotkey)) {
+      return before
+    }
+    if (
+      requested.quickPasteModifiers !== before.quickPasteModifiers &&
+      !registerQuickPaste(requested.quickPasteModifiers)
+    ) {
+      // 同一次更新若还改了唤出热键，也恢复它，保证设置是原子的。
+      if (requested.hotkey !== before.hotkey) registerHotkey(before.hotkey)
+      return before
+    }
+
+    const next = saveSettings(patch)
 
     if (next.autoLaunch !== before.autoLaunch) {
       // --hidden：开机自启时只驻托盘，不弹面板

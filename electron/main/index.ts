@@ -1,8 +1,14 @@
 import { app, BrowserWindow, dialog } from 'electron'
-import { createPanel, showPanel, markQuitting } from './window'
-import { createMini } from './mini'
+import { createPanel, getPanel, hidePanel, showPanel, markQuitting } from './window'
+import { createMini, getMini, hideMini } from './mini'
 import { createTray, updateTrayTooltip } from './tray'
-import { registerHotkey, unregisterHotkey, currentHotkey } from './shortcuts'
+import {
+  registerHotkey,
+  registerQuickPaste,
+  setQuickPasteHandler,
+  unregisterAllShortcuts,
+  currentHotkey,
+} from './shortcuts'
 import { registerIpc } from './ipc'
 import { MemoryStore, type ItemStore } from './store'
 import { startWatcher, type WatcherHandle } from './watcher'
@@ -11,6 +17,8 @@ import { startRetention } from '../data/retention'
 import { getSettings } from './settings'
 import { migrateLegacyData, useCanonicalUserData } from './paths'
 import { scheduleStartupCheck } from './updater'
+import { pasteToPreviousWindow, rememberForegroundWindow } from './paste'
+import { writeItemToClipboard } from './item-clipboard'
 
 if (process.argv.includes('--self-test')) {
   // 自检模式：跑断言后退出，不注册热键
@@ -72,10 +80,46 @@ function bootstrap(): void {
     registerIpc({ store, watcher, memoryFallback })
     stopRetention = startRetention(store, broadcastChanged)
 
+    let quickPasteBusy = false
+    setQuickPasteHandler((index) => {
+      if (quickPasteBusy || !store) return
+      quickPasteBusy = true
+
+      void (async () => {
+        try {
+          const focused = BrowserWindow.getFocusedWindow()
+          const fromPanel = focused === getPanel()
+          const fromMini = focused === getMini()
+
+          // 从外部程序直接按快粘键时，当前前台窗口就是目标；
+          // 从面板里按时沿用面板弹出前记住的目标，不能把 WitchCat 自己记成目标。
+          if (!fromPanel && !fromMini) rememberForegroundWindow()
+
+          const item = store?.list({ limit: 9 }).items[index]
+          if (!item || !store) return
+          if (!writeItemToClipboard({ store, watcher }, item.id)) return
+
+          if (fromPanel) hidePanel()
+          if (fromMini) hideMini()
+
+          const result = await pasteToPreviousWindow()
+          if (!result.ok) {
+            console.warn(`[quick-paste] 第 ${index + 1} 条自动粘贴失败: ${result.reason}`)
+          }
+          broadcastChanged()
+        } finally {
+          quickPasteBusy = false
+        }
+      })()
+    })
+
     const ok = registerHotkey()
+    const quickPasteOk = registerQuickPaste()
     createTray()
     updateTrayTooltip(
-      ok ? `WitchCat 粘贴板 · ${currentHotkey()}` : 'WitchCat 粘贴板 · 热键被占用',
+      ok
+        ? `WitchCat 粘贴板 · ${currentHotkey()}${quickPasteOk ? '' : ' · 快粘热键被占用'}`
+        : 'WitchCat 粘贴板 · 唤出热键被占用',
     )
 
     // 开机自启的设置以配置为准，避免用户在系统里改过之后两边不一致
@@ -102,7 +146,7 @@ function bootstrap(): void {
 
   app.on('before-quit', () => {
     markQuitting()
-    unregisterHotkey()
+    unregisterAllShortcuts()
     watcher?.stop()
     stopRetention?.()
     store?.close()

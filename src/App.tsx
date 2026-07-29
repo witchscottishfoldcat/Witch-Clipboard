@@ -31,6 +31,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [hotkey, setHotkey] = useState('Alt+V')
+  const [quickPasteModifiers, setQuickPasteModifiers] = useState('Ctrl+Alt')
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
 
@@ -53,11 +54,14 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), tone === 'warn' ? 3600 : 1800)
   }, [])
 
-  const loadHotkey = useCallback(() => {
-    void api.getSettings().then((s) => setHotkey(s.hotkey))
+  const loadHotkeys = useCallback(() => {
+    void api.getSettings().then((s) => {
+      setHotkey(s.hotkey)
+      setQuickPasteModifiers(s.quickPasteModifiers)
+    })
   }, [])
 
-  useEffect(() => loadHotkey(), [loadHotkey])
+  useEffect(() => loadHotkeys(), [loadHotkeys])
 
   // 更新状态：主进程启动后会自动查一次，有结果就推过来
   useEffect(() => {
@@ -132,16 +136,6 @@ export default function App() {
         return
       }
       if (settingsOpen) return
-
-      // Alt + 1..9 快贴
-      if (e.altKey && /^[1-9]$/.test(e.key)) {
-        const target = items[Number(e.key) - 1]
-        if (target) {
-          e.preventDefault()
-          paste(target.id)
-        }
-        return
-      }
 
       switch (e.key) {
         case 'ArrowDown':
@@ -266,7 +260,11 @@ export default function App() {
         />
       </div>
 
-      <Footer count={items.length} total={stats?.total ?? total} />
+      <Footer
+        count={items.length}
+        total={stats?.total ?? total}
+        quickPasteModifiers={quickPasteModifiers}
+      />
 
       <Toast message={toast} />
 
@@ -275,7 +273,7 @@ export default function App() {
           <SettingsSheet
             onClose={() => {
               setSettingsOpen(false)
-              loadHotkey()
+              loadHotkeys()
             }}
             onCleared={() => setSettingsOpen(false)}
             onToast={showToast}

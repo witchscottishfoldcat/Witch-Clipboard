@@ -33,19 +33,30 @@ const THEMES: [Settings['theme'], string, typeof Monitor][] = [
 
 const ITEM_LIMITS = [500, 2000, 10000, 0]
 const DAY_LIMITS = [7, 30, 90, 0]
+const QUICK_MODIFIERS = [
+  ['Ctrl', 'Ctrl'],
+  ['Alt', 'Alt'],
+  ['Shift', 'Shift'],
+  ['Super', 'Win'],
+] as const
 
 const label = (v: number, unit: string): string => (v === 0 ? '不限' : `${v} ${unit}`)
+
+function modifierParts(e: KeyboardEvent): string[] {
+  const parts: string[] = []
+  if (e.ctrlKey) parts.push('Ctrl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+  if (e.metaKey) parts.push('Super')
+  return parts
+}
 
 /** 把按键事件转成 Electron accelerator，例如 Alt+Shift+V */
 function toAccelerator(e: KeyboardEvent): string | null {
   const key = e.key
   if (['Control', 'Alt', 'Shift', 'Meta', 'Dead'].includes(key)) return null
 
-  const parts: string[] = []
-  if (e.ctrlKey) parts.push('Ctrl')
-  if (e.altKey) parts.push('Alt')
-  if (e.shiftKey) parts.push('Shift')
-  if (e.metaKey) parts.push('Super')
+  const parts = modifierParts(e)
   // 至少要有一个修饰键，否则会抢掉普通打字
   if (parts.length === 0) return null
 
@@ -101,12 +112,15 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
         setCapturing(false)
         return
       }
+
       const accel = toAccelerator(e)
       if (!accel) return
       setCapturing(false)
       void patch({ hotkey: accel }).then((next) => {
         onToast(
-          next.hotkey === accel ? `热键已改为 ${accel}` : '热键设置失败',
+          next.hotkey === accel
+            ? `唤出热键已改为 ${accel}`
+            : '唤出热键设置失败，组合键可能已被占用',
           next.hotkey === accel ? 'ok' : 'warn',
         )
       })
@@ -123,6 +137,30 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
         ? 'bg-brand-500 text-white shadow-sm shadow-brand-500/30'
         : 'text-black/55 hover:bg-black/8 dark:text-white/55 dark:hover:bg-white/10'
     }`
+
+  const toggleQuickModifier = (modifier: string): void => {
+    if (!settings) return
+    const selected = new Set(settings.quickPasteModifiers.split('+').filter(Boolean))
+    if (selected.has(modifier)) selected.delete(modifier)
+    else selected.add(modifier)
+
+    if (selected.size === 0) {
+      onToast('快粘热键至少需要一个修饰键', 'warn')
+      return
+    }
+
+    const modifiers = QUICK_MODIFIERS.map(([value]) => value)
+      .filter((value) => selected.has(value))
+      .join('+')
+    void patch({ quickPasteModifiers: modifiers }).then((next) => {
+      onToast(
+        next.quickPasteModifiers === modifiers
+          ? `快粘热键已改为 ${modifiers}+1…9`
+          : '快粘热键设置失败，其中一个组合键可能已被占用',
+        next.quickPasteModifiers === modifiers ? 'ok' : 'warn',
+      )
+    })
+  }
 
   return (
     <motion.div
@@ -174,29 +212,68 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
           </section>
 
           {/* 热键 */}
-          <section>
-            <div className="mb-1.5 text-[11px] text-black/45 dark:text-white/45">唤出热键</div>
-            <button
-              ref={hotkeyBox}
-              onClick={() => setCapturing(true)}
-              className={`${rowClass} w-full transition ${
-                capturing
-                  ? 'ring-2 ring-brand-500/60'
-                  : 'hover:bg-black/8 dark:hover:bg-white/12'
-              }`}
-            >
-              <KeyRound className="size-3.5 opacity-60" />
-              {capturing ? (
-                <span className="text-brand-600 dark:text-brand-400">按下新的组合键…（Esc 取消）</span>
-              ) : (
-                <>
-                  <kbd className="font-sans">{settings?.hotkey ?? 'Alt+V'}</kbd>
-                  <span className="ml-auto text-[10.5px] text-black/35 dark:text-white/35">
-                    点击修改
+          <section className="space-y-2">
+            <div>
+              <div className="mb-1.5 text-[11px] text-black/45 dark:text-white/45">
+                唤出热键
+              </div>
+              <button
+                ref={hotkeyBox}
+                onClick={() => setCapturing(true)}
+                className={`${rowClass} w-full transition ${
+                  capturing ? 'ring-2 ring-brand-500/60' : 'hover:bg-black/8 dark:hover:bg-white/12'
+                }`}
+              >
+                <KeyRound className="size-3.5 opacity-60" />
+                {capturing ? (
+                  <span className="text-brand-600 dark:text-brand-400">
+                    按下新的组合键…（Esc 取消）
                   </span>
-                </>
-              )}
-            </button>
+                ) : (
+                  <>
+                    <kbd className="font-sans">{settings?.hotkey ?? 'Alt+V'}</kbd>
+                    <span className="ml-auto text-[10.5px] text-black/35 dark:text-white/35">
+                      点击修改
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-[11px] text-black/45 dark:text-white/45">
+                <span>快粘热键</span>
+                <span className="text-[10px] text-black/30 dark:text-white/30">数字键固定</span>
+              </div>
+              <div className={`${rowClass} h-9 w-full`}>
+                <ClipboardPaste className="size-3.5 opacity-60" />
+                <div className="flex items-center gap-1">
+                  {QUICK_MODIFIERS.map(([value, text]) => {
+                    const active = (settings?.quickPasteModifiers ?? 'Ctrl+Alt')
+                      .split('+')
+                      .includes(value)
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => toggleQuickModifier(value)}
+                        className={`h-6 min-w-9 rounded-md px-1.5 text-[10.5px] transition ${
+                          active
+                            ? 'bg-brand-500 text-white shadow-sm shadow-brand-500/25'
+                            : 'bg-black/5 text-black/40 hover:bg-black/10 dark:bg-white/7 dark:text-white/40 dark:hover:bg-white/12'
+                        }`}
+                      >
+                        {text}
+                      </button>
+                    )
+                  })}
+                </div>
+                <span className="text-black/25 dark:text-white/25">+</span>
+                <kbd className="rounded-md bg-black/6 px-2 py-1 font-sans text-[10.5px] text-black/55 dark:bg-white/9 dark:text-white/60">
+                  1…9
+                </kbd>
+              </div>
+            </div>
           </section>
 
           {/* 行为 */}

@@ -28,6 +28,7 @@ export default function MiniApp() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [searching, setSearching] = useState(false)
+  const [quickPasteModifiers, setQuickPasteModifiers] = useState('Ctrl+Alt')
 
   const inputRef = useRef<HTMLInputElement>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -44,10 +45,18 @@ export default function MiniApp() {
     toastTimer.current = setTimeout(() => setToast(null), tone === 'warn' ? 3000 : 1500)
   }, [])
 
+  const loadQuickPasteModifiers = useCallback(() => {
+    void api
+      .getSettings()
+      .then((settings) => setQuickPasteModifiers(settings.quickPasteModifiers))
+  }, [])
+
   useEffect(() => {
     if (items.length === 0) setSelectedId(null)
     else if (!items.some((it) => it.id === selectedId)) setSelectedId(items[0].id)
   }, [items, selectedId])
+
+  useEffect(() => loadQuickPasteModifiers(), [loadQuickPasteModifiers])
 
   // 每次弹出都回到干净状态
   useEffect(
@@ -56,8 +65,9 @@ export default function MiniApp() {
         setQ('')
         setKind(null)
         setSearching(false)
+        loadQuickPasteModifiers()
       }),
-    [],
+    [loadQuickPasteModifiers],
   )
 
   const paste = useCallback(
@@ -85,14 +95,6 @@ export default function MiniApp() {
           setSearching(false)
           setQ('')
         } else void api.hidePanel()
-        return
-      }
-      if (e.altKey && /^[1-9]$/.test(e.key)) {
-        const target = items[Number(e.key) - 1]
-        if (target) {
-          e.preventDefault()
-          paste(target.id)
-        }
         return
       }
       switch (e.key) {
@@ -224,7 +226,7 @@ export default function MiniApp() {
       <div className="flex items-center gap-2 border-t border-black/6 px-2.5 py-1.5 text-[9.5px] text-black/35 dark:border-white/8 dark:text-white/35">
         <span>双击或 Enter 粘贴</span>
         <span className="text-black/15 dark:text-white/15">·</span>
-        <span>Alt+1…9 快贴</span>
+        <span>{quickPasteModifiers}+1…9 快贴</span>
         <span className="ml-auto tabular-nums">{items.length}</span>
       </div>
 

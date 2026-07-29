@@ -8,6 +8,7 @@ declare global {
 
 const DEFAULT_SETTINGS: Settings = {
   hotkey: 'Alt+V',
+  quickPasteModifiers: 'Ctrl+Alt',
   maxItems: 2000,
   maxDays: 30,
   skipSensitive: true,

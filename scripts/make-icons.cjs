@@ -1,5 +1,5 @@
 /**
- * 图标生成：SVG 是唯一的设计母版，PNG 全部由它光栅化出来。
+ * 图标生成：高保真 PNG 是设计母版，各尺寸都由它统一缩放生成。
  *
  * 用 Electron（Chromium）渲染 SVG——它本来就在依赖里，不用再引 sharp/resvg 这类
  * 需要编译的依赖。画到 canvas 再取 toDataURL，拿到的是真正带 alpha 的位图，
@@ -13,17 +13,18 @@ const { join } = require('node:path')
 
 const RES = join(__dirname, '..', 'resources')
 
-/** [源 SVG, 输出 PNG, 边长] */
+/** [源图, 输出 PNG, 边长] */
 const JOBS = [
-  ['logo.svg', 'icon.png', 512],
-  ['logo.svg', 'icon-256.png', 256],
-  ['logo-tray.svg', 'tray.png', 32],
-  ['logo-tray.svg', 'tray@2x.png', 64],
+  ['logo-rendered.png', 'icon.png', 512],
+  ['logo-rendered.png', 'icon-256.png', 256],
+  ['logo-rendered.png', 'tray.png', 32],
+  ['logo-rendered.png', 'tray@2x.png', 64],
 ]
 
-async function rasterize(win, svgPath, size) {
-  const svg = readFileSync(join(RES, svgPath), 'utf8')
-  const src = `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`
+async function rasterize(win, sourcePath, size) {
+  const source = readFileSync(join(RES, sourcePath))
+  const mime = sourcePath.endsWith('.svg') ? 'image/svg+xml' : 'image/png'
+  const src = `data:${mime};base64,${source.toString('base64')}`
 
   const dataUrl = await win.webContents.executeJavaScript(
     `(async () => {

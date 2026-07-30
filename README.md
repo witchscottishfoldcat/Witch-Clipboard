@@ -150,16 +150,16 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
 | 剪贴板 | 奶油金板面、深紫粗描边与三条内容线 |
 | 巫师帽 | 深紫渐变，帽带使用金色，并兼作剪贴板顶部夹具 |
 
-设计母版是 SVG，PNG 全部由它光栅化生成，**不存在两份互相打架的设计源**：
+设计母版是高保真 PNG，应用图标和托盘尺寸都由它统一缩放生成：
 
 | 文件 | 用途 |
 | --- | --- |
-| `resources/logo.svg` | 母版（完整细节） |
-| `resources/logo-tray.svg` | 托盘专用简化版：加粗轮廓并减少板面内容线，保证 16–32 px 清晰 |
+| `resources/logo-rendered.png` | 正式光栅母版：基于 WitchDrawer 原图改造，保留材质、光影和描边质感 |
+| `resources/logo.svg` / `logo-tray.svg` | 早期矢量草稿，仅作为设计记录保留 |
 | `resources/icon.png` / `icon-256.png` | 应用图标、安装包图标、README |
-| `resources/tray.png` / `tray@2x.png` | 托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏那张） |
+| `resources/tray.png` / `tray@2x.png` | 同一母版生成的托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏版本） |
 
-改完 SVG 跑 `npm run icons` 重新生成。光栅化用的是 Electron 自带的 Chromium——
+替换母版后跑 `npm run icons` 重新生成。缩放用的是 Electron 自带的 Chromium——
 它本来就在依赖里，不用再引 sharp/resvg 这类要编译的东西；画到 canvas 再取
 `toDataURL`，拿到的是真正带 alpha 的位图。
 

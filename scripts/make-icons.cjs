@@ -21,6 +21,10 @@ const JOBS = [
   ['logo-rendered.png', 'tray@2x.png', 64],
 ]
 
+// 母版四周有约 9% 的透明留白。输出时只裁掉外侧 6%，
+// 不改变帽子、剪贴板和内容线之间的内部比例，同时保留约 3% 安全边距。
+const OUTER_CROP_RATIO = 0.06
+
 async function rasterize(win, sourcePath, size) {
   const source = readFileSync(join(RES, sourcePath))
   const mime = sourcePath.endsWith('.svg') ? 'image/svg+xml' : 'image/png'
@@ -37,7 +41,19 @@ async function rasterize(win, sourcePath, size) {
       const ctx = canvas.getContext('2d')
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(img, 0, 0, ${size}, ${size})
+      const cropX = img.naturalWidth * ${OUTER_CROP_RATIO}
+      const cropY = img.naturalHeight * ${OUTER_CROP_RATIO}
+      ctx.drawImage(
+        img,
+        cropX,
+        cropY,
+        img.naturalWidth - cropX * 2,
+        img.naturalHeight - cropY * 2,
+        0,
+        0,
+        ${size},
+        ${size},
+      )
       return canvas.toDataURL('image/png')
     })()`,
     true,

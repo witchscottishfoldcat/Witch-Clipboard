@@ -113,7 +113,8 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
     }
   }
 
-  const canSend = item?.kind === 'text' && item.autoKind !== 'key'
+  const canSend =
+    item?.kind === 'image' || (item?.kind === 'text' && item.autoKind !== 'key')
 
   return (
     <motion.div
@@ -237,7 +238,7 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
                 安全保护已开启
               </div>
               <div className="mt-0.5 text-[10.5px] leading-4 text-black/40 dark:text-white/40">
-                仅传文字和链接；Key、Token、图片、文件不会自动发送。关闭连接后二维码立即失效。
+                支持文字、链接和图片；Key、Token、密码及文件不会发送。关闭连接后二维码立即失效。
               </div>
             </div>
           </div>

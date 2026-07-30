@@ -59,6 +59,8 @@ export async function runSelfTest(): Promise<void> {
   check('API Key', classify('sk-proj-1234567890abcdefghijklmnop') === 'key')
   check('命名 Key', classify('API_KEY=abc123xyz789secret') === 'key')
   check('许可证 Key', classify('ABCD-1234-EFGH-5678') === 'key')
+  check('模型名称', classify('gpt-4o-mini') === 'model')
+  check('带字段的模型名称', classify('model=claude-3-7-sonnet') === 'model')
   check('邮箱', classify('a.b@example.com') === 'email')
   check('颜色', classify('#8b5cf6') === 'color')
   check('Windows 路径', classify('D:\\ADM\\WitchCat\\package.json') === 'path')
@@ -95,6 +97,34 @@ export async function runSelfTest(): Promise<void> {
       res.json() as Promise<{ latest?: { text?: string } }>,
     )
     check('手机可以收到电脑文字', state.latest?.text === '从电脑发到手机的测试文字')
+
+    const syncPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X2Y7WQAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    const imageSent = crossDevice.publishImage(syncPng, '测试图片')
+    check(
+      '电脑图片允许发送',
+      imageSent.ok,
+      `reason=${imageSent.reason ?? 'unknown'}, bytes=${syncPng.byteLength}`,
+    )
+    const imageState = await fetch(
+      `http://127.0.0.1:${pairUrl.port}/api/state/${token}`,
+    ).then(
+      (res) =>
+        res.json() as Promise<{
+          latest?: { kind?: string; imageUrl?: string }
+        }>,
+    )
+    const imageResponse = imageState.latest?.imageUrl
+      ? await fetch(`http://127.0.0.1:${pairUrl.port}${imageState.latest.imageUrl}`)
+      : null
+    check(
+      '手机可以收到电脑图片',
+      imageState.latest?.kind === 'image' &&
+        Boolean(imageResponse?.ok) &&
+        Boolean(imageResponse && Buffer.from(await imageResponse.arrayBuffer()).equals(syncPng)),
+    )
 
     const phoneResponse = await fetch(`http://127.0.0.1:${pairUrl.port}/api/send/${token}`, {
       method: 'POST',
@@ -213,7 +243,39 @@ export async function runSelfTest(): Promise<void> {
   })
   check('按链接类型筛选', store.list({ autoKind: 'url' }).total === 0)
   check('按 Key 类型筛选', store.list({ autoKind: 'key' }).items[0]?.id === keyItem.id)
+  const urlItem = store.add({
+    kind: 'text',
+    text: 'https://api.example.com/v1',
+    preview: 'https://api.example.com/v1',
+    autoKind: 'url',
+    hash: sha256('item-url'),
+    blobName: null,
+    thumb: null,
+    width: null,
+    height: null,
+    bytes: 26,
+    sourceApp: 'test.exe',
+  })
+  const modelItem = store.add({
+    kind: 'text',
+    text: 'gpt-4o-mini',
+    preview: 'gpt-4o-mini',
+    autoKind: 'model',
+    hash: sha256('item-model'),
+    blobName: null,
+    thumb: null,
+    width: null,
+    height: null,
+    bytes: 11,
+    sourceApp: 'test.exe',
+  })
+  const relatedIds = new Set(store.related(keyItem.id).map((item) => item.id))
+  check('关联检索找到 URL', relatedIds.has(urlItem.id))
+  check('关联检索找到模型', relatedIds.has(modelItem.id))
+  check('按模型类型筛选', store.list({ autoKind: 'model' }).items[0]?.id === modelItem.id)
   store.remove(keyItem.id)
+  store.remove(urlItem.id)
+  store.remove(modelItem.id)
 
   console.log('\n置顶与保留策略')
   store.togglePin(a.id)

@@ -113,6 +113,10 @@ function bootstrap(): void {
       broadcastChanged()
       const item = store?.get(itemId)
       if (item?.kind === 'text' && item.text) crossDevice?.publishText(item.text)
+      if (item?.kind === 'image') {
+        const png = store?.imagePng(itemId)
+        if (png) crossDevice?.publishImage(png, item.preview)
+      }
     })
     registerIpc({ store, watcher, memoryFallback, crossDevice })
     stopRetention = startRetention(store, broadcastChanged)

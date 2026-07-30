@@ -96,6 +96,9 @@ export function registerIpc(deps: IpcDeps): void {
     const png = store.imagePng(id)
     return png ? `data:image/png;base64,${png.toString('base64')}` : null
   })
+  ipcMain.handle('items:related', (_e, id: number, limit?: number) =>
+    store.related(id, Math.min(Math.max(limit ?? 6, 1), 12)),
+  )
 
   ipcMain.handle('panel:hide', (event) => {
     // 迷你面板和完整面板共用这条通道，谁发的就收谁
@@ -163,7 +166,12 @@ export function registerIpc(deps: IpcDeps): void {
     await deps.crossDevice.start()
     // 手机刚连接时不该看到空白：把电脑当前剪贴板作为第一条立即发布。
     const currentText = clipboard.readText()
-    if (currentText.trim()) deps.crossDevice.publishText(currentText)
+    if (currentText.trim()) {
+      deps.crossDevice.publishText(currentText)
+    } else if (clipboard.availableFormats().some((format) => format.startsWith('image/'))) {
+      const image = clipboard.readImage()
+      if (!image.isEmpty()) deps.crossDevice.publishImage(image.toPNG(), '当前剪贴板图片')
+    }
     return deps.crossDevice.status()
   })
   ipcMain.handle('cross-device:stop', () => deps.crossDevice.stop())
@@ -173,8 +181,14 @@ export function registerIpc(deps: IpcDeps): void {
     (_e, id: number): CrossDeviceSendResult => {
       const item = store.get(id)
       if (!item) return { ok: false, reason: 'not-found' }
-      if (item.kind !== 'text' || !item.text) return { ok: false, reason: 'unsupported' }
-      return deps.crossDevice.publishText(item.text)
+      if (item.kind === 'text' && item.text) return deps.crossDevice.publishText(item.text)
+      if (item.kind === 'image') {
+        const png = store.imagePng(id)
+        return png
+          ? deps.crossDevice.publishImage(png, item.preview)
+          : { ok: false, reason: 'not-found' }
+      }
+      return { ok: false, reason: 'unsupported' }
     },
   )
 

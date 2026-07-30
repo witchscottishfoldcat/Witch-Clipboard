@@ -33,6 +33,8 @@ export interface ItemStore {
   add(input: NewItem): AddResult
   list(query: ListQuery): ListResult
   get(id: number): ClipItem | undefined
+  /** 同一复制会话内的 Key、URL、模型名称（15 分钟窗口，同来源优先） */
+  related(id: number, limit?: number): ClipItem[]
   /** 取解密后的原始 PNG，用于写回剪贴板和大图预览 */
   imagePng(id: number): Buffer | null
   tags(): string[]
@@ -126,6 +128,28 @@ export class MemoryStore implements ItemStore {
     return this.items.find((it) => it.id === id)
   }
 
+  related(id: number, limit = 6): ClipItem[] {
+    const base = this.get(id)
+    if (!base || !isAssociable(base)) return []
+    const windowMs = 15 * 60_000
+    return this.items
+      .filter(
+        (item) =>
+          item.id !== id &&
+          isAssociable(item) &&
+          Math.abs(item.lastUsedAt - base.lastUsedAt) <= windowMs,
+      )
+      .sort((a, b) => {
+        const aSameSource = a.sourceApp === base.sourceApp ? 0 : 1
+        const bSameSource = b.sourceApp === base.sourceApp ? 0 : 1
+        return (
+          aSameSource - bSameSource ||
+          Math.abs(a.lastUsedAt - base.lastUsedAt) - Math.abs(b.lastUsedAt - base.lastUsedAt)
+        )
+      })
+      .slice(0, limit)
+  }
+
   imagePng(id: number): Buffer | null {
     return this.images.get(id) ?? null
   }
@@ -200,4 +224,11 @@ export class MemoryStore implements ItemStore {
     this.items = []
     this.images.clear()
   }
+}
+
+function isAssociable(item: ClipItem): boolean {
+  return (
+    item.kind === 'text' &&
+    (item.autoKind === 'key' || item.autoKind === 'url' || item.autoKind === 'model')
+  )
 }

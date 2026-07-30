@@ -166,6 +166,31 @@ export class SqliteStore implements ItemStore {
     return row ? toItem(row) : undefined
   }
 
+  related(id: number, limit = 6): ClipItem[] {
+    const base = this.get(id)
+    if (
+      !base ||
+      base.kind !== 'text' ||
+      !['key', 'url', 'model'].includes(base.autoKind)
+    ) {
+      return []
+    }
+    const rows = this.db
+      .prepare(
+        `${SELECT_BASE}
+         WHERE i.id <> ?
+           AND i.kind = 'text'
+           AND i.auto_kind IN ('key', 'url', 'model')
+           AND abs(i.last_used_at - ?) <= ?
+         ORDER BY
+           CASE WHEN coalesce(i.source_app, '') = coalesce(?, '') THEN 0 ELSE 1 END,
+           abs(i.last_used_at - ?) ASC
+         LIMIT ?`,
+      )
+      .all(id, base.lastUsedAt, 15 * 60_000, base.sourceApp, base.lastUsedAt, limit) as Row[]
+    return rows.map(toItem)
+  }
+
   imagePng(id: number): Buffer | null {
     const row = this.db.prepare('SELECT blob_name FROM items WHERE id = ?').get(id) as
       | { blob_name: string | null }

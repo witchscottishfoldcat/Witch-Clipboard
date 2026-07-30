@@ -1,6 +1,16 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ClipboardPaste, Copy, Pin, Trash2, Plus, X, Hash, FolderOpen } from 'lucide-react'
+import {
+  ClipboardPaste,
+  Copy,
+  Pin,
+  Trash2,
+  Plus,
+  X,
+  Hash,
+  FolderOpen,
+  Link2,
+} from 'lucide-react'
 import type { ClipItem } from '@shared/types'
 import { badgeOf, colorValue } from '@/lib/kinds'
 import { fileInfo } from '@/lib/files'
@@ -29,6 +39,40 @@ function useFullImage(item: ClipItem | null): string | null {
   return url
 }
 
+function useRelatedItems(item: ClipItem | null): ClipItem[] {
+  const [related, setRelated] = useState<ClipItem[]>([])
+  const id =
+    item?.kind === 'text' && ['key', 'url', 'model'].includes(item.autoKind) ? item.id : null
+
+  useEffect(() => {
+    if (id === null) {
+      setRelated([])
+      return
+    }
+    let alive = true
+    const load = (): void => {
+      void api.relatedItems(id, 4).then((items) => {
+        if (alive) setRelated(items)
+      })
+    }
+    load()
+    const unsubscribe = api.onChanged(load)
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [id])
+
+  return related
+}
+
+function relatedPreview(item: ClipItem): string {
+  if (item.autoKind !== 'key') return item.preview
+  const value = item.preview.trim()
+  if (value.length <= 10) return '••••••••'
+  return `${value.slice(0, 5)}••••${value.slice(-4)}`
+}
+
 interface Props {
   item: ClipItem | null
   onPaste: (id: number) => void
@@ -51,6 +95,7 @@ export function PreviewPane({
   const [draft, setDraft] = useState('')
   const [adding, setAdding] = useState(false)
   const fullImage = useFullImage(item)
+  const related = useRelatedItems(item)
 
   if (!item) {
     return (
@@ -171,6 +216,43 @@ export function PreviewPane({
               </pre>
             )}
           </div>
+
+          {/* 自动关联：同一来源、15 分钟内复制的 Key + URL + 模型名称 */}
+          {related.length > 0 && (
+            <div className="px-3.5 pt-2.5">
+              <div className="mb-1.5 flex items-center gap-1 text-[10.5px] font-medium text-black/45 dark:text-white/45">
+                <Link2 className="size-3" />
+                关联配置
+                <span className="ml-auto text-[9px] font-normal text-black/28 dark:text-white/28">
+                  15 分钟内
+                </span>
+              </div>
+              <div className="space-y-1">
+                {related.map((relatedItem) => {
+                  const relatedBadge = badgeOf(relatedItem)
+                  return (
+                    <button
+                      key={relatedItem.id}
+                      type="button"
+                      onClick={() => onCopy(relatedItem.id)}
+                      title="复制这条关联内容"
+                      className="flex h-8 w-full items-center gap-1.5 rounded-lg bg-black/[0.035] px-2 text-left transition hover:bg-brand-500/10 dark:bg-white/[0.055] dark:hover:bg-brand-500/14"
+                    >
+                      <span
+                        className={`shrink-0 rounded px-1 py-0.5 text-[8.5px] font-semibold ${relatedBadge.chip}`}
+                      >
+                        {relatedBadge.label}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[10.5px] text-black/58 dark:text-white/60">
+                        {relatedPreview(relatedItem)}
+                      </span>
+                      <Copy className="size-3 shrink-0 text-black/28 dark:text-white/28" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 标签 */}
           <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5">

@@ -23,6 +23,11 @@ const BADGES: Record<AutoKind | 'image' | 'files', Badge> = {
     chip: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
     bar: 'bg-fuchsia-400',
   },
+  model: {
+    label: '模型',
+    chip: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+    bar: 'bg-cyan-400',
+  },
   code: {
     label: '代码',
     chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
@@ -80,6 +85,7 @@ export const KIND_FILTERS: KindFilter[] = [
   { id: 'files', label: '文件', kind: 'files', autoKind: null },
   { id: 'url', label: '链接', kind: 'text', autoKind: 'url' },
   { id: 'key', label: 'Key', kind: 'text', autoKind: 'key' },
+  { id: 'model', label: '模型', kind: 'text', autoKind: 'model' },
   { id: 'code', label: '代码', kind: 'text', autoKind: 'code' },
   { id: 'color', label: '颜色', kind: 'text', autoKind: 'color' },
   { id: 'path', label: '路径', kind: null, autoKind: 'path' },

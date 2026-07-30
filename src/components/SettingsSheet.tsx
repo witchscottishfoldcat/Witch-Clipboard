@@ -390,7 +390,7 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
               })}
             </div>
             <div className="text-[10px] leading-4 text-black/35 dark:text-white/35">
-              可选分类：文字、图片、文件、链接、Key、代码、颜色、路径、邮箱和数字。
+              可选分类：文字、图片、文件、链接、Key、模型、代码、颜色、路径、邮箱和数字。
             </div>
           </section>
 

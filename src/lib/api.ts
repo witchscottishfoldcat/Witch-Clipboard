@@ -34,6 +34,7 @@ const fallback: ClipboardApi = {
   copy: async () => {},
   paste: async () => ({ ok: false, reason: 'no-native' }),
   imageDataUrl: async () => null,
+  relatedItems: async () => [],
   hidePanel: async () => {},
   expandPanel: async () => {},
   revealFile: async () => {},

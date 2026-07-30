@@ -7,7 +7,7 @@ import { classify } from '@shared/classify'
 
 export type Db = Database.Database
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 const SCHEMA = `
 CREATE TABLE items (
@@ -153,5 +153,18 @@ function migrate(db: Db): void {
     })
     backfill()
     db.pragma('user_version = 3')
+  }
+  if (current < 4) {
+    const rows = db
+      .prepare("SELECT id, text FROM items WHERE kind = 'text' AND auto_kind = 'plain'")
+      .all() as { id: number; text: string | null }[]
+    const update = db.prepare("UPDATE items SET auto_kind = 'model' WHERE id = ?")
+    const backfill = db.transaction(() => {
+      for (const row of rows) {
+        if (row.text && classify(row.text) === 'model') update.run(row.id)
+      }
+    })
+    backfill()
+    db.pragma('user_version = 4')
   }
 }

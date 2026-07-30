@@ -8,11 +8,14 @@ import type {
 } from '@shared/types'
 
 const MAX_TEXT_BYTES = 100_000
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 const CONNECTED_WINDOW_MS = 5_000
 
 interface SharedItem {
   revision: number
-  text: string
+  kind: 'text' | 'image'
+  text: string | null
+  image: Buffer | null
   preview: string
   sentAt: number
   source: 'desktop' | 'phone'
@@ -112,12 +115,45 @@ export class CrossDeviceService {
     if (Buffer.byteLength(text, 'utf8') > MAX_TEXT_BYTES) {
       return { ok: false, reason: 'too-large' }
     }
-    if (this.latest?.text === text && this.latest.source === source) return { ok: true }
+    if (this.latest?.kind === 'text' && this.latest.text === text && this.latest.source === source) {
+      return { ok: true }
+    }
 
     this.latest = {
       revision: ++this.revision,
+      kind: 'text',
       text,
+      image: null,
       preview: makePreview(text),
+      sentAt: Date.now(),
+      source,
+    }
+    this.deps.onStatusChanged()
+    return { ok: true }
+  }
+
+  publishImage(
+    png: Buffer,
+    preview = '剪贴板图片',
+    source: 'desktop' | 'phone' = 'desktop',
+  ): CrossDeviceSendResult {
+    if (!this.server?.listening) return { ok: false, reason: 'not-running' }
+    if (png.byteLength === 0 || png.byteLength > MAX_IMAGE_BYTES) {
+      return { ok: false, reason: 'too-large' }
+    }
+    if (
+      this.latest?.kind === 'image' &&
+      this.latest.image?.equals(png) &&
+      this.latest.source === source
+    ) {
+      return { ok: true }
+    }
+    this.latest = {
+      revision: ++this.revision,
+      kind: 'image',
+      text: null,
+      image: Buffer.from(png),
+      preview,
       sentAt: Date.now(),
       source,
     }
@@ -146,8 +182,40 @@ export class CrossDeviceService {
       respondJson(res, 200, {
         ok: true,
         pairCode: token.slice(-6).toUpperCase(),
-        latest: this.latest,
+        latest: this.latest
+          ? {
+              revision: this.latest.revision,
+              kind: this.latest.kind,
+              text: this.latest.text,
+              preview: this.latest.preview,
+              sentAt: this.latest.sentAt,
+              source: this.latest.source,
+              imageUrl:
+                this.latest.kind === 'image'
+                  ? `/api/image/${token}?revision=${this.latest.revision}`
+                  : null,
+            }
+          : null,
       })
+      return
+    }
+
+    if (req.method === 'GET' && requestUrl.pathname.startsWith('/api/image/')) {
+      const requestedRevision = Number(requestUrl.searchParams.get('revision'))
+      if (
+        this.latest?.kind !== 'image' ||
+        !this.latest.image ||
+        requestedRevision !== this.latest.revision
+      ) {
+        respondText(res, 404, '图片已经失效')
+        return
+      }
+      res.writeHead(200, {
+        'Content-Type': 'image/png',
+        'Content-Length': this.latest.image.byteLength,
+        'Content-Disposition': 'inline; filename="witchcat-clipboard.png"',
+      })
+      res.end(this.latest.image)
       return
     }
 
@@ -284,7 +352,7 @@ function mobilePage(computerName: string, pairCode: string): string {
     h1{font-size:25px;line-height:1.15;letter-spacing:-.03em;margin:0}.sub{font-size:12px;color:#657577;margin-top:8px}
     .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#2f9b83;box-shadow:0 0 0 4px #2f9b8318;margin-right:8px}
     .card{background:#ffffff70;border:1px solid #ffffffa8;border-radius:24px;padding:18px;margin:14px 0;box-shadow:0 20px 55px #31484918,inset 0 1px 0 #ffffffb8;backdrop-filter:blur(26px) saturate(135%);-webkit-backdrop-filter:blur(26px) saturate(135%)}
-    .label{font-size:11px;font-weight:700;letter-spacing:.08em;color:#617173;margin-bottom:11px}.content{min-height:104px;white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.6;color:#162326}
+    .label{font-size:11px;font-weight:700;letter-spacing:.08em;color:#617173;margin-bottom:11px}.content{min-height:104px;white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.6;color:#162326}.received-image{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:#ffffff55;box-shadow:inset 0 0 0 1px #ffffff88}
     textarea{width:100%;min-height:116px;resize:vertical;border:1px solid #ffffffb5;border-radius:16px;padding:14px;font:inherit;color:#162326;outline:none;background:#ffffff68;box-shadow:inset 0 1px 4px #3348490b}
     textarea::placeholder{color:#849193}textarea:focus{border-color:#76a5a0;box-shadow:0 0 0 3px #4a8b8418;background:#ffffff88}
     button{width:100%;height:47px;border:1px solid #ffffff35;border-radius:15px;background:#203638;color:#fff;font-size:14px;font-weight:700;margin-top:13px;box-shadow:0 10px 26px #20363826;transition:transform .15s,background .15s}
@@ -298,7 +366,7 @@ function mobilePage(computerName: string, pairCode: string): string {
     <header class="brand"><div class="eyebrow">WITCHCAT CONNECT</div><h1>跨设备剪贴板</h1><div class="sub"><span class="dot"></span>已连接 ${safeComputer} · 配对码 ${safeCode}</div></header>
     <section class="card">
       <div class="label">来自电脑</div>
-      <div id="received" class="content">等待电脑复制文字或链接…</div>
+      <div id="received" class="content">等待电脑发送文字、链接或图片…</div>
       <button id="copy">复制到手机</button>
       <div id="receivedMeta" class="meta">保持页面打开即可自动接收</div>
     </section>
@@ -315,7 +383,10 @@ function mobilePage(computerName: string, pairCode: string): string {
     const received = document.getElementById('received');
     const receivedMeta = document.getElementById('receivedMeta');
     const outgoing = document.getElementById('outgoing');
+    const copyButton = document.getElementById('copy');
     let latestText = '';
+    let latestKind = 'text';
+    let latestImageUrl = '';
     let revision = -1;
     let toastTimer;
     function toast(text){const el=document.getElementById('toast');el.textContent=text;el.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('on'),1800)}
@@ -325,13 +396,24 @@ function mobilePage(computerName: string, pairCode: string): string {
         if(!res.ok)throw new Error();
         const data=await res.json();
         if(data.latest&&data.latest.revision!==revision){
-          revision=data.latest.revision;latestText=data.latest.text;received.textContent=latestText;
+          revision=data.latest.revision;latestKind=data.latest.kind||'text';latestText=data.latest.text||'';latestImageUrl=data.latest.imageUrl||'';
+          if(latestKind==='image'){
+            const img=document.createElement('img');img.src=latestImageUrl;img.alt='来自电脑的剪贴板图片';img.className='received-image';
+            received.replaceChildren(img);copyButton.textContent='打开或保存图片';
+          }else{
+            received.textContent=latestText;copyButton.textContent='复制到手机';
+          }
           receivedMeta.textContent=(data.latest.source==='phone'?'已发送到电脑':'电脑刚刚发送')+' · '+new Date(data.latest.sentAt).toLocaleTimeString();
         }
       }catch{receivedMeta.textContent='连接已断开，请回到电脑重新配对'}
       setTimeout(poll,1200);
     }
     document.getElementById('copy').onclick=async()=>{
+      if(latestKind==='image'){
+        if(!latestImageUrl){toast('图片已经失效');return}
+        const link=document.createElement('a');link.href=latestImageUrl;link.download='witchcat-clipboard.png';link.target='_blank';document.body.appendChild(link);link.click();link.remove();
+        toast('已打开图片，也可以长按图片保存');return
+      }
       if(!latestText){toast('还没有收到内容');return}
       try{
         if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(latestText);

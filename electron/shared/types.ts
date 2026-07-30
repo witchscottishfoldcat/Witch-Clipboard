@@ -3,7 +3,16 @@
 export type ItemKind = 'text' | 'image' | 'files'
 
 /** 自动识别出的文本子类型，用于着色和快速筛选 */
-export type AutoKind = 'plain' | 'url' | 'key' | 'code' | 'color' | 'path' | 'email' | 'number'
+export type AutoKind =
+  | 'plain'
+  | 'url'
+  | 'key'
+  | 'model'
+  | 'code'
+  | 'color'
+  | 'path'
+  | 'email'
+  | 'number'
 
 /** 顶部快速筛选栏可显示的内置分类 */
 export type FilterId =
@@ -13,6 +22,7 @@ export type FilterId =
   | 'files'
   | 'url'
   | 'key'
+  | 'model'
   | 'code'
   | 'color'
   | 'path'
@@ -173,6 +183,8 @@ export interface ClipboardApi {
   paste(id: number): Promise<PasteOutcome>
   /** 取全尺寸原图（data URL），非图片条目返回 null */
   imageDataUrl(id: number): Promise<string | null>
+  /** 查找同一复制会话中关联的 Key、URL 和模型名称 */
+  relatedItems(id: number, limit?: number): Promise<ClipItem[]>
   hidePanel(): Promise<void>
   /** 从迷你面板切到完整面板 */
   expandPanel(): Promise<void>

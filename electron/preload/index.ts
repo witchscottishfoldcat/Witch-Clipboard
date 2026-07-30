@@ -13,6 +13,7 @@ const api: ClipboardApi = {
   copy: (id) => ipcRenderer.invoke('items:copy', id),
   paste: (id) => ipcRenderer.invoke('items:paste', id),
   imageDataUrl: (id) => ipcRenderer.invoke('items:image', id),
+  relatedItems: (id, limit) => ipcRenderer.invoke('items:related', id, limit),
   hidePanel: () => ipcRenderer.invoke('panel:hide'),
   expandPanel: () => ipcRenderer.invoke('panel:expand'),
   revealFile: (id) => ipcRenderer.invoke('items:reveal', id),

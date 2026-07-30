@@ -11,6 +11,9 @@ const RE_JWT = /^eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+$/i
 const RE_NAMED_KEY =
   /^(?:api[_ -]?key|access[_ -]?key|secret(?:[_ -]?key)?|token|license[_ -]?key)\s*[:=]\s*["']?[a-z0-9_./+=-]{8,}["']?$/i
 const RE_LICENSE_KEY = /^(?=.*[a-z])(?=.*\d)[a-z0-9]{4,}(?:-[a-z0-9]{4,}){2,}$/i
+const RE_MODEL_NAME =
+  /^(?:(?:openai|anthropic|google|meta|deepseek|alibaba|mistral)[/:])?(?:(?:gpt|chatgpt|o[134]|text-embedding)[\w.-]*|claude[\w.-]*|gemini[\w.-]*|deepseek[\w.-]*|qwen[\w.-]*|llama[\w.-]*|mistral[\w.-]*|mixtral[\w.-]*|glm[\w.-]*|moonshot[\w.-]*|kimi[\w.-]*|ernie[\w.-]*|doubao[\w.-]*)$/i
+const RE_NAMED_MODEL = /^(?:model|model[_ -]?name|模型|模型名称)\s*[:=：]\s*["']?[\w./:-]{2,100}["']?$/i
 
 /** 代码特征：出现结构性符号或常见关键字 */
 const CODE_HINTS = [
@@ -35,6 +38,7 @@ export function classify(text: string): AutoKind {
     ) {
       return 'key'
     }
+    if (RE_MODEL_NAME.test(t) || RE_NAMED_MODEL.test(t)) return 'model'
     if (RE_EMAIL.test(t)) return 'email'
     if (RE_COLOR.test(t)) return 'color'
     if (RE_PATH.test(t)) return 'path'

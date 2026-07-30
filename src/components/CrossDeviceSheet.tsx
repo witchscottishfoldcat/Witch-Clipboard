@@ -5,14 +5,14 @@ import {
   CheckCircle2,
   Copy,
   LoaderCircle,
-  Send,
+  MousePointer2,
   ShieldCheck,
   Smartphone,
   Wifi,
   WifiOff,
   X,
 } from 'lucide-react'
-import type { ClipItem, CrossDeviceSendResult, CrossDeviceStatus } from '@shared/types'
+import type { ClipItem, CrossDeviceStatus } from '@shared/types'
 import { api } from '@/lib/api'
 
 interface Props {
@@ -29,14 +29,6 @@ const EMPTY_STATUS: CrossDeviceStatus = {
   lastSeenAt: null,
   lastSentAt: null,
   lastSentPreview: null,
-}
-
-const SEND_ERRORS: Record<NonNullable<CrossDeviceSendResult['reason']>, string> = {
-  'not-running': '请先启动跨设备连接',
-  'not-found': '这条记录已经不存在了',
-  unsupported: '第一版只支持文字和链接',
-  sensitive: 'Key 或 Token 已被安全拦截',
-  'too-large': '内容超过 100 KB，暂不发送',
 }
 
 export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
@@ -95,20 +87,6 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
       alive = false
     }
   }, [status.url])
-
-  const sendSelected = async (): Promise<void> => {
-    if (!item) {
-      onToast('请先选择一条文字或链接', 'warn')
-      return
-    }
-    const result = await api.sendCrossDeviceItem(item.id)
-    if (!result.ok) {
-      onToast(SEND_ERRORS[result.reason ?? 'unsupported'], 'warn')
-      return
-    }
-    onToast('已发送到手机')
-    await refresh()
-  }
 
   const stop = async (): Promise<void> => {
     setBusy(true)
@@ -206,7 +184,7 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
               同一 Wi‑Fi 扫码
             </div>
             <p className="mt-2 text-[11px] leading-[1.55] text-black/45 dark:text-white/45">
-              手机无需安装 App。扫码后保持页面打开，电脑新复制的文字会自动出现。
+              手机无需安装 App。连接后先同步电脑当前剪贴板；回到列表点选哪条，就发送哪条。
             </p>
             {status.pairCode && (
               <div className="mt-2 rounded-lg bg-black/4 px-2.5 py-2 text-[10.5px] text-black/45 dark:bg-white/6 dark:text-white/45">
@@ -284,12 +262,12 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
             )}
           </div>
           <button
-            onClick={() => void sendSelected()}
-            disabled={!status.running || !canSend}
+            onClick={onClose}
+            disabled={!status.connected}
             className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 text-[11.5px] font-medium text-white shadow-sm shadow-brand-500/25 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-35"
           >
-            <Send className="size-3.5" />
-            发送当前项
+            <MousePointer2 className="size-3.5" />
+            {status.connected ? '开始选择发送' : '等待手机连接'}
           </button>
         </div>
       </motion.div>

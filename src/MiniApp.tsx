@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Clipboard, Maximize2, Search, X } from 'lucide-react'
 import { Logo } from '@/components/Logo'
-import type { AutoKind, ItemKind, ListQuery, PasteOutcome } from '@shared/types'
+import type { AutoKind, FilterId, ItemKind, ListQuery, PasteOutcome } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
 import { MiniRow } from '@/components/MiniRow'
 import { Toast, type ToastMessage } from '@/components/Toast'
-import { KIND_FILTERS } from '@/lib/kinds'
+import { DEFAULT_VISIBLE_FILTERS, visibleKindFilters } from '@/lib/kinds'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制，请手动 Ctrl+V',
@@ -30,6 +30,7 @@ export default function MiniApp() {
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [searching, setSearching] = useState(false)
   const [quickPasteModifiers, setQuickPasteModifiers] = useState('Ctrl+Alt')
+  const [visibleFilters, setVisibleFilters] = useState<FilterId[]>(DEFAULT_VISIBLE_FILTERS)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -49,10 +50,11 @@ export default function MiniApp() {
     toastTimer.current = setTimeout(() => setToast(null), tone === 'warn' ? 3000 : 1500)
   }, [])
 
-  const loadQuickPasteModifiers = useCallback(() => {
-    void api
-      .getSettings()
-      .then((settings) => setQuickPasteModifiers(settings.quickPasteModifiers))
+  const loadPreferences = useCallback(() => {
+    void api.getSettings().then((settings) => {
+      setQuickPasteModifiers(settings.quickPasteModifiers)
+      setVisibleFilters(settings.visibleFilters)
+    })
   }, [])
 
   useEffect(() => {
@@ -60,7 +62,7 @@ export default function MiniApp() {
     else if (!items.some((it) => it.id === selectedId)) setSelectedId(items[0].id)
   }, [items, selectedId])
 
-  useEffect(() => loadQuickPasteModifiers(), [loadQuickPasteModifiers])
+  useEffect(() => loadPreferences(), [loadPreferences])
 
   // 每次弹出都回到干净状态
   useEffect(
@@ -70,9 +72,9 @@ export default function MiniApp() {
         setKind(null)
         setAutoKind(null)
         setSearching(false)
-        loadQuickPasteModifiers()
+        loadPreferences()
       }),
-    [loadQuickPasteModifiers],
+    [loadPreferences],
   )
 
   const paste = useCallback(
@@ -84,13 +86,21 @@ export default function MiniApp() {
     [showToast],
   )
 
+  const selectItem = useCallback((id: number) => {
+    setSelectedId(id)
+    void api.crossDeviceStatus().then((status) => {
+      if (!status.connected) return
+      void api.sendCrossDeviceItem(id)
+    })
+  }, [])
+
   const move = useCallback(
     (delta: number) => {
       if (items.length === 0) return
       const from = index < 0 ? 0 : index
-      setSelectedId(items[Math.min(Math.max(from + delta, 0), items.length - 1)].id)
+      selectItem(items[Math.min(Math.max(from + delta, 0), items.length - 1)].id)
     },
-    [index, items],
+    [index, items, selectItem],
   )
 
   useEffect(() => {
@@ -180,8 +190,8 @@ export default function MiniApp() {
       </div>
 
       {/* 类型筛选 */}
-      <div className="flex items-center gap-1 px-2.5 pb-1.5">
-        {KIND_FILTERS.map((f) => (
+      <div className="flex items-center gap-1 overflow-x-auto px-2.5 pb-1.5">
+        {visibleKindFilters(visibleFilters).map((f) => (
           <button
             key={f.id}
             onClick={() => {
@@ -222,7 +232,7 @@ export default function MiniApp() {
               item={item}
               selected={item.id === selectedId}
               hotIndex={i < 9 ? i + 1 : null}
-              onSelect={() => setSelectedId(item.id)}
+              onSelect={() => selectItem(item.id)}
               onPaste={() => paste(item.id)}
               onReveal={() => void api.revealFile(item.id)}
             />

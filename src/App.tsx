@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import type { AutoKind, ItemKind, ListQuery, PasteOutcome, UpdateStatus } from '@shared/types'
+import type {
+  AutoKind,
+  FilterId,
+  ItemKind,
+  ListQuery,
+  PasteOutcome,
+  UpdateStatus,
+} from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems, useStats, useTags } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
@@ -13,6 +20,7 @@ import { SettingsSheet } from '@/components/SettingsSheet'
 import { Toast, type ToastMessage } from '@/components/Toast'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { CrossDeviceSheet } from '@/components/CrossDeviceSheet'
+import { DEFAULT_VISIBLE_FILTERS } from '@/lib/kinds'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
@@ -35,6 +43,7 @@ export default function App() {
   const [crossDeviceOpen, setCrossDeviceOpen] = useState(false)
   const [hotkey, setHotkey] = useState('Alt+V')
   const [quickPasteModifiers, setQuickPasteModifiers] = useState('Ctrl+Alt')
+  const [visibleFilters, setVisibleFilters] = useState<FilterId[]>(DEFAULT_VISIBLE_FILTERS)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
 
@@ -60,14 +69,15 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), tone === 'warn' ? 3600 : 1800)
   }, [])
 
-  const loadHotkeys = useCallback(() => {
+  const loadPreferences = useCallback(() => {
     void api.getSettings().then((s) => {
       setHotkey(s.hotkey)
       setQuickPasteModifiers(s.quickPasteModifiers)
+      setVisibleFilters(s.visibleFilters)
     })
   }, [])
 
-  useEffect(() => loadHotkeys(), [loadHotkeys])
+  useEffect(() => loadPreferences(), [loadPreferences])
 
   // 更新状态：主进程启动后会自动查一次，有结果就推过来
   useEffect(() => {
@@ -125,14 +135,23 @@ export default function App() {
   const remove = useCallback((id: number) => void api.remove(id), [])
   const setItemTags = useCallback((id: number, t: string[]) => void api.setTags(id, t), [])
 
+  /** 手机在线时，用户在历史列表中选中哪条就立即发送哪条。 */
+  const selectItem = useCallback((id: number) => {
+    setSelectedId(id)
+    void api.crossDeviceStatus().then((status) => {
+      if (!status.connected) return
+      void api.sendCrossDeviceItem(id)
+    })
+  }, [])
+
   const move = useCallback(
     (delta: number) => {
       if (items.length === 0) return
       const from = index < 0 ? 0 : index
       const next = Math.min(Math.max(from + delta, 0), items.length - 1)
-      setSelectedId(items[next].id)
+      selectItem(items[next].id)
     },
-    [index, items],
+    [index, items, selectItem],
   )
 
   useEffect(() => {
@@ -265,13 +284,14 @@ export default function App() {
         onTag={setTag}
         pinnedOnly={pinnedOnly}
         onPinnedOnly={setPinnedOnly}
+        visibleFilters={visibleFilters}
       />
 
       <div className="flex min-h-0 flex-1 border-t border-black/6 dark:border-white/8">
         <ItemList
           items={items}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={selectItem}
           onPaste={paste}
           onTogglePin={togglePin}
           loading={loading}
@@ -302,7 +322,9 @@ export default function App() {
           <SettingsSheet
             onClose={() => {
               setSettingsOpen(false)
-              loadHotkeys()
+              setKind(null)
+              setAutoKind(null)
+              loadPreferences()
             }}
             onCleared={() => setSettingsOpen(false)}
             onToast={showToast}

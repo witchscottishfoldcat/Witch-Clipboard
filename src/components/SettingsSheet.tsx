@@ -14,10 +14,12 @@ import {
   EyeOff,
   ClipboardPaste,
   PanelTop,
+  ListFilter,
 } from 'lucide-react'
-import type { SecurityInfo, Settings } from '@shared/types'
+import type { FilterId, SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
 import { UpdateSection } from './UpdateSection'
+import { KIND_FILTERS } from '@/lib/kinds'
 
 interface Props {
   onClose: () => void
@@ -39,6 +41,7 @@ const QUICK_MODIFIERS = [
   ['Shift', 'Shift'],
   ['Super', 'Win'],
 ] as const
+const OPTIONAL_FILTERS = KIND_FILTERS.filter((filter) => filter.id !== 'all')
 
 const label = (v: number, unit: string): string => (v === 0 ? '不限' : `${v} ${unit}`)
 
@@ -160,6 +163,17 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
         next.quickPasteModifiers === modifiers ? 'ok' : 'warn',
       )
     })
+  }
+
+  const toggleVisibleFilter = (filterId: FilterId): void => {
+    if (!settings || filterId === 'all') return
+    const selected = new Set(settings.visibleFilters)
+    if (selected.has(filterId)) selected.delete(filterId)
+    else selected.add(filterId)
+    const ordered = KIND_FILTERS.map((filter) => filter.id).filter(
+      (id) => id === 'all' || selected.has(id),
+    )
+    void patch({ visibleFilters: ordered })
   }
 
   return (
@@ -298,6 +312,39 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
                 />
               </label>
             ))}
+          </section>
+
+          {/* 顶部快速筛选 */}
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-black/45 dark:text-white/45">
+              <ListFilter className="size-3.5" />
+              导航栏标签
+              <span className="ml-auto text-[9.5px] text-black/30 dark:text-white/30">
+                “全部”固定显示
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 rounded-xl bg-black/[0.035] p-2 dark:bg-white/[0.055]">
+              {OPTIONAL_FILTERS.map((filter) => {
+                const active = settings?.visibleFilters.includes(filter.id) ?? false
+                return (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => toggleVisibleFilter(filter.id)}
+                    className={`h-7 rounded-lg px-2.5 text-[10.5px] transition ${
+                      active
+                        ? 'bg-brand-500 text-white shadow-sm shadow-brand-500/25'
+                        : 'bg-white/70 text-black/45 hover:bg-white dark:bg-white/7 dark:text-white/45 dark:hover:bg-white/12'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="text-[10px] leading-4 text-black/35 dark:text-white/35">
+              可选分类：文字、图片、文件、链接、Key、代码、颜色、路径、邮箱和数字。
+            </div>
           </section>
 
           {/* 保留策略 */}

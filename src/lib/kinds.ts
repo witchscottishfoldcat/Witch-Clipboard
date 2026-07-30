@@ -1,4 +1,4 @@
-import type { AutoKind, ClipItem, ItemKind } from '@shared/types'
+import type { AutoKind, ClipItem, FilterId, ItemKind } from '@shared/types'
 
 export interface Badge {
   label: string
@@ -67,7 +67,7 @@ export function badgeOf(item: ClipItem): Badge {
 }
 
 export interface KindFilter {
-  id: string
+  id: FilterId
   label: string
   kind: ItemKind | null
   autoKind: AutoKind | null
@@ -80,7 +80,19 @@ export const KIND_FILTERS: KindFilter[] = [
   { id: 'files', label: '文件', kind: 'files', autoKind: null },
   { id: 'url', label: '链接', kind: 'text', autoKind: 'url' },
   { id: 'key', label: 'Key', kind: 'text', autoKind: 'key' },
+  { id: 'code', label: '代码', kind: 'text', autoKind: 'code' },
+  { id: 'color', label: '颜色', kind: 'text', autoKind: 'color' },
+  { id: 'path', label: '路径', kind: null, autoKind: 'path' },
+  { id: 'email', label: '邮箱', kind: 'text', autoKind: 'email' },
+  { id: 'number', label: '数字', kind: 'text', autoKind: 'number' },
 ]
+
+export const DEFAULT_VISIBLE_FILTERS: FilterId[] = ['all', 'text', 'image', 'files', 'url', 'key']
+
+export function visibleKindFilters(ids: FilterId[]): KindFilter[] {
+  const visible = new Set<FilterId>(['all', ...ids])
+  return KIND_FILTERS.filter((filter) => visible.has(filter.id))
+}
 
 /** 颜色类条目：抽出可直接用于 style 的颜色值 */
 export function colorValue(item: ClipItem): string | null {

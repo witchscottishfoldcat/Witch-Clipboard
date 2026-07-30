@@ -22,6 +22,7 @@ const DEFAULTS: Settings = {
   ],
   hideAfterPaste: true,
   trayOpensMini: true,
+  visibleFilters: ['all', 'text', 'image', 'files', 'url', 'key'],
   autoLaunch: false,
   theme: 'system',
   skippedVersion: null,
@@ -39,7 +40,14 @@ export function getSettings(): Settings {
     // 手工编辑过的文件可能带 UTF-8 BOM，JSON.parse 会直接抛
     const text = readFileSync(file(), 'utf8').replace(/^﻿/, '')
     const raw = JSON.parse(text) as Partial<Settings>
-    cache = { ...DEFAULTS, ...raw }
+    cache = {
+      ...DEFAULTS,
+      ...raw,
+      visibleFilters:
+        Array.isArray(raw.visibleFilters) && raw.visibleFilters.length > 0
+          ? ['all', ...raw.visibleFilters.filter((id) => id !== 'all')]
+          : DEFAULTS.visibleFilters,
+    }
   } catch {
     cache = { ...DEFAULTS }
   }

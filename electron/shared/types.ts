@@ -5,6 +5,20 @@ export type ItemKind = 'text' | 'image' | 'files'
 /** 自动识别出的文本子类型，用于着色和快速筛选 */
 export type AutoKind = 'plain' | 'url' | 'key' | 'code' | 'color' | 'path' | 'email' | 'number'
 
+/** 顶部快速筛选栏可显示的内置分类 */
+export type FilterId =
+  | 'all'
+  | 'text'
+  | 'image'
+  | 'files'
+  | 'url'
+  | 'key'
+  | 'code'
+  | 'color'
+  | 'path'
+  | 'email'
+  | 'number'
+
 export interface ClipItem {
   id: number
   kind: ItemKind
@@ -72,6 +86,8 @@ export interface Settings {
   hideAfterPaste: boolean
   /** 单击托盘弹迷你预览面板（false = 直接开完整面板） */
   trayOpensMini: boolean
+  /** 顶部导航栏显示的快速筛选标签；all 始终显示 */
+  visibleFilters: FilterId[]
   /** 开机自启（静默启动到托盘） */
   autoLaunch: boolean
   theme: 'system' | 'light' | 'dark'

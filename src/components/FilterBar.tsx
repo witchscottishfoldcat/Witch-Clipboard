@@ -1,6 +1,6 @@
 import { Pin, Tag as TagIcon } from 'lucide-react'
-import type { AutoKind, ItemKind } from '@shared/types'
-import { KIND_FILTERS } from '@/lib/kinds'
+import type { AutoKind, FilterId, ItemKind } from '@shared/types'
+import { visibleKindFilters } from '@/lib/kinds'
 
 interface Props {
   kind: ItemKind | null
@@ -12,6 +12,7 @@ interface Props {
   onTag: (t: string | null) => void
   pinnedOnly: boolean
   onPinnedOnly: (v: boolean) => void
+  visibleFilters: FilterId[]
 }
 
 const chipBase =
@@ -30,10 +31,11 @@ export function FilterBar({
   onTag,
   pinnedOnly,
   onPinnedOnly,
+  visibleFilters,
 }: Props) {
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto px-3.5 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {KIND_FILTERS.map((f) => (
+      {visibleKindFilters(visibleFilters).map((f) => (
         <button
           key={f.id}
           onClick={() => {

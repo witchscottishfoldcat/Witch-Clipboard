@@ -270,26 +270,32 @@ function mobilePage(computerName: string, pairCode: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#7c3aed">
+  <meta name="theme-color" content="#203638">
   <title>WitchCat 跨设备剪贴板</title>
   <style>
     :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(155deg,#f4f0ff,#fff 45%,#f7f4ff);color:#201a2c}
-    main{width:min(100%,460px);margin:auto;padding:24px 18px 40px}.brand{display:flex;align-items:center;gap:12px;margin:8px 0 24px}
-    .logo{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#7c3aed;color:#fff;font-size:24px;box-shadow:0 10px 28px #7c3aed45}
-    h1{font-size:20px;margin:0}.sub{font-size:12px;color:#756d82;margin-top:3px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px}
-    .card{background:#ffffffdd;border:1px solid #7c3aed18;border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 16px 40px #4c1d9512}
-    .label{font-size:12px;color:#766d83;margin-bottom:9px}.content{min-height:94px;white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.55}
-    textarea{width:100%;min-height:110px;resize:vertical;border:1px solid #ded8e8;border-radius:14px;padding:13px;font:inherit;outline:none;background:#fff}
-    textarea:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px #8b5cf622}
-    button{width:100%;height:46px;border:0;border-radius:14px;background:#7c3aed;color:#fff;font-size:15px;font-weight:650;margin-top:12px}
-    button:active{transform:scale(.985)}button.secondary{background:#eee9f7;color:#5b4774}.meta{font-size:11px;color:#9990a5;margin-top:10px}
-    .notice{font-size:12px;line-height:1.6;color:#766d83;text-align:center;padding:4px 20px}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:#21182d;color:#fff;padding:10px 16px;border-radius:999px;font-size:13px;transition:.2s;pointer-events:none}.toast.on{opacity:1;transform:translateX(-50%)}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;overflow-x:hidden;background:linear-gradient(145deg,#dce9e7 0%,#edf1ef 44%,#d7e1e4 100%);color:#172326}
+    body:before,body:after{content:"";position:fixed;border-radius:999px;filter:blur(4px);pointer-events:none}
+    body:before{width:270px;height:270px;right:-90px;top:-70px;background:linear-gradient(145deg,#91c6c0aa,#e8f4f1aa)}
+    body:after{width:230px;height:230px;left:-100px;bottom:6%;background:linear-gradient(145deg,#9db9c3aa,#e3ecee88)}
+    main{position:relative;z-index:1;width:min(100%,460px);margin:auto;padding:30px 18px 42px}
+    .brand{margin:6px 4px 22px}.eyebrow{font-size:10px;font-weight:750;letter-spacing:.18em;color:#52706f;margin-bottom:6px}
+    h1{font-size:25px;line-height:1.15;letter-spacing:-.03em;margin:0}.sub{font-size:12px;color:#657577;margin-top:8px}
+    .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#2f9b83;box-shadow:0 0 0 4px #2f9b8318;margin-right:8px}
+    .card{background:#ffffff70;border:1px solid #ffffffa8;border-radius:24px;padding:18px;margin:14px 0;box-shadow:0 20px 55px #31484918,inset 0 1px 0 #ffffffb8;backdrop-filter:blur(26px) saturate(135%);-webkit-backdrop-filter:blur(26px) saturate(135%)}
+    .label{font-size:11px;font-weight:700;letter-spacing:.08em;color:#617173;margin-bottom:11px}.content{min-height:104px;white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.6;color:#162326}
+    textarea{width:100%;min-height:116px;resize:vertical;border:1px solid #ffffffb5;border-radius:16px;padding:14px;font:inherit;color:#162326;outline:none;background:#ffffff68;box-shadow:inset 0 1px 4px #3348490b}
+    textarea::placeholder{color:#849193}textarea:focus{border-color:#76a5a0;box-shadow:0 0 0 3px #4a8b8418;background:#ffffff88}
+    button{width:100%;height:47px;border:1px solid #ffffff35;border-radius:15px;background:#203638;color:#fff;font-size:14px;font-weight:700;margin-top:13px;box-shadow:0 10px 26px #20363826;transition:transform .15s,background .15s}
+    button:active{transform:scale(.985);background:#16292b}.meta{font-size:11px;color:#728184;margin-top:10px}
+    .notice{font-size:11px;line-height:1.65;color:#68787a;text-align:center;padding:6px 20px}.toast{position:fixed;z-index:3;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:#17292be8;color:#fff;padding:11px 17px;border:1px solid #ffffff30;box-shadow:0 12px 36px #23363835;backdrop-filter:blur(18px);border-radius:999px;font-size:13px;transition:.2s;pointer-events:none}.toast.on{opacity:1;transform:translateX(-50%)}
+    @media(prefers-color-scheme:dark){body{background:linear-gradient(145deg,#142224,#1c292b 48%,#182729);color:#eef5f4}body:before{background:#366b6770}body:after{background:#3d596570}.card{background:#ffffff12;border-color:#ffffff20;box-shadow:0 22px 60px #0005,inset 0 1px 0 #ffffff16}.eyebrow{color:#8cb7b2}h1,.content{color:#edf5f4}.sub,.label,.meta,.notice{color:#9eafaf}textarea{background:#ffffff10;border-color:#ffffff1c;color:#eff6f5}textarea:focus{background:#ffffff17;border-color:#679d97}textarea::placeholder{color:#829190}button{background:#dbe9e7;color:#172729;border-color:#fff8}}
   </style>
 </head>
 <body>
   <main>
-    <div class="brand"><div class="logo">🐱</div><div><h1>WitchCat 跨设备剪贴板</h1><div class="sub"><span class="dot"></span>已连接 ${safeComputer} · 配对码 ${safeCode}</div></div></div>
+    <header class="brand"><div class="eyebrow">WITCHCAT CONNECT</div><h1>跨设备剪贴板</h1><div class="sub"><span class="dot"></span>已连接 ${safeComputer} · 配对码 ${safeCode}</div></header>
     <section class="card">
       <div class="label">来自电脑</div>
       <div id="received" class="content">等待电脑复制文字或链接…</div>

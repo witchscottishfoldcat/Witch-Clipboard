@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS: Settings = {
   sensitiveApps: [],
   hideAfterPaste: true,
   trayOpensMini: true,
+  visibleFilters: ['all', 'text', 'image', 'files', 'url', 'key'],
   autoLaunch: false,
   theme: 'system',
   skippedVersion: null,

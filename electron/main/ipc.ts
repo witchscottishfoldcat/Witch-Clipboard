@@ -1,4 +1,4 @@
-import { ipcMain, shell, app, BrowserWindow } from 'electron'
+import { ipcMain, shell, app, BrowserWindow, clipboard } from 'electron'
 import type {
   CrossDeviceSendResult,
   ListQuery,
@@ -159,7 +159,13 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle('app:openDataDir', () => shell.openPath(app.getPath('userData')))
 
-  ipcMain.handle('cross-device:start', () => deps.crossDevice.start())
+  ipcMain.handle('cross-device:start', async () => {
+    await deps.crossDevice.start()
+    // 手机刚连接时不该看到空白：把电脑当前剪贴板作为第一条立即发布。
+    const currentText = clipboard.readText()
+    if (currentText.trim()) deps.crossDevice.publishText(currentText)
+    return deps.crossDevice.status()
+  })
   ipcMain.handle('cross-device:stop', () => deps.crossDevice.stop())
   ipcMain.handle('cross-device:status', () => deps.crossDevice.status())
   ipcMain.handle(

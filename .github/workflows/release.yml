@@ -38,7 +38,12 @@ jobs:
           path: |
             release/*.exe
             release/*.blockmap
-            release/latest*.yml
+      - uses: actions/upload-artifact@v4
+        if: matrix.arch == 'x64'
+        with:
+          name: windows-update-metadata
+          if-no-files-found: error
+          path: release/latest.yml
 
   macos:
     name: macOS ${{ matrix.arch }}
@@ -68,7 +73,12 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.blockmap
-            release/latest*.yml
+      - uses: actions/upload-artifact@v4
+        if: matrix.arch == 'x64'
+        with:
+          name: macos-update-metadata
+          if-no-files-found: error
+          path: release/latest-mac.yml
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

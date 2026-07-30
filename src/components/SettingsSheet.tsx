@@ -16,6 +16,10 @@ import {
   PanelTop,
   ListFilter,
   Palette,
+  UserRound,
+  Mail,
+  Globe2,
+  Scale,
 } from 'lucide-react'
 import type { FilterId, SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
@@ -464,6 +468,56 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
           </section>
 
           <UpdateSection onToast={onToast} />
+
+          {/* 开发者 */}
+          <section className="space-y-1.5">
+            <div className="text-[11px] text-black/45 dark:text-white/45">开发者</div>
+            <div className="overflow-hidden rounded-xl bg-black/[0.035] px-2.5 dark:bg-white/[0.055]">
+              <div className="flex h-8 items-center gap-2 border-b border-black/5 text-[11px] dark:border-white/7">
+                <UserRound className="size-3.5 text-black/35 dark:text-white/35" />
+                <span className="text-black/40 dark:text-white/40">作者</span>
+                <span className="ml-auto font-medium text-black/68 dark:text-white/70">
+                  Thewitchcat
+                </span>
+              </div>
+              <div className="flex h-8 items-center gap-2 border-b border-black/5 text-[11px] dark:border-white/7">
+                <Mail className="size-3.5 text-black/35 dark:text-white/35" />
+                <span className="text-black/40 dark:text-white/40">邮箱</span>
+                <a
+                  href="mailto:witchscottishfoldcat@gmail.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-auto text-black/60 transition hover:text-brand-600 dark:text-white/62 dark:hover:text-brand-400"
+                >
+                  witchscottishfoldcat@gmail.com
+                </a>
+              </div>
+              <div className="flex h-8 items-center gap-2 border-b border-black/5 text-[11px] dark:border-white/7">
+                <Globe2 className="size-3.5 text-black/35 dark:text-white/35" />
+                <span className="text-black/40 dark:text-white/40">网站</span>
+                <a
+                  href="https://www.witchcat.cn"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-auto text-black/60 transition hover:text-brand-600 dark:text-white/62 dark:hover:text-brand-400"
+                >
+                  www.witchcat.cn
+                </a>
+              </div>
+              <div className="flex h-8 items-center gap-2 text-[11px]">
+                <Scale className="size-3.5 text-black/35 dark:text-white/35" />
+                <span className="text-black/40 dark:text-white/40">开源协议</span>
+                <a
+                  href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-auto font-medium text-black/60 transition hover:text-brand-600 dark:text-white/62 dark:hover:text-brand-400"
+                >
+                  CC BY-NC-SA 4.0
+                </a>
+              </div>
+            </div>
+          </section>
 
           {/* 安全状态 */}
           {security && (

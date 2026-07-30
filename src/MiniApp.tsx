@@ -155,7 +155,7 @@ export default function MiniApp() {
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="搜索…"
+              placeholder="搜索内容或来源…"
               spellCheck={false}
               className="h-6.5 w-full rounded-md border border-brand-500/40 bg-white/70 pr-2 pl-7 text-[11.5px] outline-none dark:bg-white/8 dark:text-white/90"
             />
@@ -223,7 +223,7 @@ export default function MiniApp() {
               <div className="text-[10px] leading-4 text-black/28 dark:text-white/28">
                 复制任何文字、图片或文件，
                 <br />
-                WitchCat 会自动收进来
+                Witch Clipboard 会自动收进来
               </div>
             )}
           </div>

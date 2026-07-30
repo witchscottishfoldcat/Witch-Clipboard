@@ -1,6 +1,7 @@
 appId: com.witchcat.clipboard
-productName: WitchCat Clipboard
-copyright: WitchCat Clipboard
+# appId 和发布仓库保留旧值，保证已安装用户能原位升级。
+productName: Witch Clipboard
+copyright: Witch Clipboard
 
 directories:
   output: release
@@ -43,7 +44,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: WitchCat 粘贴板
-  artifactName: WitchCat-Clipboard-${version}-setup.${ext}
+  shortcutName: Witch Clipboard
+  artifactName: Witch-Clipboard-${version}-setup.${ext}
   # 卸载时保留用户数据目录，剪贴板历史不该被安装程序删掉
   deleteAppDataOnUninstall: false

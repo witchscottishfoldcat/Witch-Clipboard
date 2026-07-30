@@ -1,54 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>WitchCat Clipboard</title>
-  <!--
-    构思：剪贴板的「夹子」就是巫师帽，「板面」就是猫脸。
-    一个形状同时读出猫、巫师、剪贴板三层意思，缩到 16px 时靠
-    白色板面 + 两只耳朵 + 深色尖帽的剪影仍然能认出来。
-  -->
+  <title>Witch Clipboard</title>
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6366f1" />
-      <stop offset="1" stop-color="#a855f7" />
+    <linearGradient id="tile" x1="72" y1="48" x2="438" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182535" />
+      <stop offset="1" stop-color="#071018" />
     </linearGradient>
-    <radialGradient id="sheen" cx="0.24" cy="0.16" r="0.86">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22" />
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
-    </radialGradient>
+    <linearGradient id="accent" x1="176" y1="210" x2="338" y2="352" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67e8f9" />
+      <stop offset="1" stop-color="#34d399" />
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity=".28" />
+    </filter>
   </defs>
 
-  <!-- 底板 -->
-  <rect width="512" height="512" rx="112" fill="url(#tile)" />
-  <rect width="512" height="512" rx="112" fill="url(#sheen)" />
+  <rect width="512" height="512" rx="118" fill="url(#tile)" />
+  <rect x="14" y="14" width="484" height="484" rx="105" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="2" />
 
-  <!-- 猫耳（画在板面之下，只露出耳尖） -->
-  <g fill="#ffffff" stroke="#ffffff" stroke-width="14" stroke-linejoin="round">
-    <path d="M170 234 L150 122 L232 190 Z" />
-    <path d="M342 234 L362 122 L280 190 Z" />
+  <g filter="url(#shadow)">
+    <rect x="120" y="108" width="272" height="318" rx="62" fill="#f8fafc" />
+    <rect x="196" y="72" width="120" height="76" rx="30" fill="url(#accent)" />
+    <rect x="224" y="94" width="64" height="18" rx="9" fill="#071018" fill-opacity=".72" />
   </g>
 
-  <!-- 板面 = 猫脸 -->
-  <rect x="136" y="196" width="240" height="218" rx="46" fill="#ffffff" />
-
-  <!-- 巫师帽 = 剪贴板的夹子 -->
-  <g transform="rotate(-16 256 200)">
-    <path
-      d="M256 62 C266 62 274 70 277 80 L316 188 C319 198 312 206 302 206 L210 206 C200 206 193 198 196 188 L235 80 C238 70 246 62 256 62 Z"
-      fill="#1b1740"
-    />
-    <rect x="174" y="196" width="164" height="30" rx="15" fill="#1b1740" />
-    <rect x="219" y="146" width="74" height="20" rx="10" fill="#f59e0b" />
-  </g>
-
-  <!-- 猫脸：眼睛、鼻子、胡须 -->
-  <g fill="#4f46e5">
-    <ellipse cx="202" cy="312" rx="18" ry="21" />
-    <ellipse cx="310" cy="312" rx="18" ry="21" />
-    <path d="M256 342 L271 359 C274 362 271 366 267 366 L245 366 C241 366 238 362 241 359 Z" />
-  </g>
-  <g stroke="#4f46e5" stroke-width="9" stroke-linecap="round" opacity="0.5">
-    <path d="M162 340 L196 348" />
-    <path d="M160 372 L196 372" />
-    <path d="M350 340 L316 348" />
-    <path d="M352 372 L316 372" />
-  </g>
+  <path
+    d="M174 228 L211 342 L257 274 L301 342 L338 228"
+    fill="none"
+    stroke="url(#accent)"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path d="M338 190 L347 210 L367 219 L347 228 L338 248 L329 228 L309 219 L329 210 Z" fill="#22d3ee" />
 </svg>

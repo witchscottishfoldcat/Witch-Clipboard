@@ -96,7 +96,7 @@ export function openDb(): Db {
 
     const choice = dialog.showMessageBoxSync({
       type: 'error',
-      title: 'WitchCat 粘贴板无法打开数据库',
+      title: 'Witch Clipboard 无法打开数据库',
       message: '现有的剪贴板数据库无法解密。',
       detail:
         `原因：${message}\n\n` +

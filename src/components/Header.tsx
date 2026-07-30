@@ -33,7 +33,7 @@ export function Header({
           ref={inputRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="搜索剪贴板历史…"
+          placeholder="搜索内容或来源应用…"
           spellCheck={false}
           autoComplete="off"
           className="h-9 w-full rounded-[10px] border border-black/8 bg-white/60 pr-8 pl-9 text-[13px] text-black/85 outline-none transition placeholder:text-black/30 focus:border-brand-500/60 focus:bg-white/85 focus:ring-3 focus:ring-brand-500/12 dark:border-white/10 dark:bg-white/6 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:bg-white/10"

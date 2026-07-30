@@ -17,6 +17,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
+// 改项目名后仍沿用旧目录，避免用户历史记录和加密密钥“消失”。
 const DATA_DIR = 'WitchCat-Clipboard'
 
 /** 改名前用过的目录名（旧版叫 ZTB） */

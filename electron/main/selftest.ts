@@ -30,7 +30,7 @@ export async function runSelfTest(): Promise<void> {
   app.on('window-all-closed', () => {})
   await app.whenReady()
 
-  console.log(`\nWitchCat Clipboard 自检 · 临时数据目录 ${dir}\n`)
+  console.log(`\nWitch Clipboard 自检 · 临时数据目录 ${dir}\n`)
 
   // 动态导入：必须在 setPath 之后，模块里会用到 userData
   const { sealBuffer, openBuffer, sha256, isOsProtected } = await import('../data/crypto')
@@ -63,7 +63,7 @@ export async function runSelfTest(): Promise<void> {
   check('带字段的模型名称', classify('model=claude-3-7-sonnet') === 'model')
   check('邮箱', classify('a.b@example.com') === 'email')
   check('颜色', classify('#8b5cf6') === 'color')
-  check('Windows 路径', classify('D:\\ADM\\WitchCat\\package.json') === 'path')
+  check('Windows 路径', classify('D:\\ADM\\Witch Clipboard\\package.json') === 'path')
   check('数字', classify('1234567890') === 'number')
   check('代码', classify('export const a = 1;\nfunction b() {\n  return a\n}') === 'code')
   check('普通中文不误判为代码', classify('今天下午三点开会，讨论剪贴板的保留策略') === 'plain')
@@ -89,7 +89,10 @@ export async function runSelfTest(): Promise<void> {
     loopback.hostname = '127.0.0.1'
     const token = pairUrl.pathname.split('/').pop()
     const page = await fetch(loopback)
-    check('手机配对页可访问', page.ok && (await page.text()).includes('WitchCat 跨设备剪贴板'))
+    check(
+      '手机配对页可访问',
+      page.ok && (await page.text()).includes('Witch Clipboard · 跨设备剪贴板'),
+    )
 
     const sent = crossDevice.publishText('从电脑发到手机的测试文字')
     check('电脑文字允许发送', sent.ok)
@@ -182,6 +185,7 @@ export async function runSelfTest(): Promise<void> {
   check('三字中文走 FTS5 trigram', store.list({ q: '剪贴板' }).total === 1)
   check('两字中文走 LIKE 回退', store.list({ q: '会议' }).total === 1)
   check('ASCII 混排', store.list({ q: 'Alt+V' }).total === 1)
+  check('按来源应用搜索', store.list({ q: 'test.exe' }).items[0]?.id === a.id)
   check('无关键词返回全部', store.list({ q: '' }).total === 1)
   check('搜不到的词返回 0', store.list({ q: '不存在的内容xyz' }).total === 0)
   check('含引号的关键词不炸', (() => {
@@ -286,7 +290,7 @@ export async function runSelfTest(): Promise<void> {
   check('普通文字也能触发时间关联', relatedIds.has(keyItem.id))
   check('关联检索找到 URL', relatedIds.has(urlItem.id))
   check('关联检索找到模型', relatedIds.has(modelItem.id))
-  check('关联结果上限为 10 条', store.related(plainItem.id, 99).length <= 10)
+  check('关联结果上限为 5 条', store.related(plainItem.id, 99).length <= 5)
   check('按模型类型筛选', store.list({ autoKind: 'model' }).items[0]?.id === modelItem.id)
   store.remove(keyItem.id)
   store.remove(urlItem.id)

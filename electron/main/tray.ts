@@ -14,7 +14,7 @@ export function createTray(): Tray {
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
 
   tray.setToolTip(
-    `WitchCat 粘贴板 · 单击预览 · 双击完整面板 · ${currentHotkey() ?? '热键未注册'}`,
+    `Witch Clipboard · 单击预览 · 双击完整面板 · ${currentHotkey() ?? '热键未注册'}`,
   )
 
   // 单击默认弹迷你预览面板；设置里可以改成直接开完整面板。
@@ -42,7 +42,7 @@ export function createTray(): Tray {
       },
     },
     { type: 'separator' },
-    { label: `WitchCat Clipboard v${app.getVersion()}`, enabled: false },
+    { label: `Witch Clipboard v${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     {
       label: '退出',

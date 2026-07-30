@@ -33,7 +33,7 @@ export interface ItemStore {
   add(input: NewItem): AddResult
   list(query: ListQuery): ListResult
   get(id: number): ClipItem | undefined
-  /** 5 秒内连续复制的关联条目，最多返回 10 条 */
+  /** 5 秒内连续复制的关联条目，最多返回 5 条 */
   related(id: number, limit?: number): ClipItem[]
   /** 取解密后的原始 PNG，用于写回剪贴板和大图预览 */
   imagePng(id: number): Buffer | null
@@ -114,7 +114,8 @@ export class MemoryStore implements ItemStore {
       if (tag && !it.tags.includes(tag)) return false
       if (pinnedOnly && !it.pinned) return false
       if (needle) {
-        const hay = `${it.preview}\n${it.text ?? ''}\n${it.tags.join(' ')}`.toLowerCase()
+        const hay =
+          `${it.preview}\n${it.text ?? ''}\n${it.tags.join(' ')}\n${it.sourceApp ?? ''}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
@@ -128,11 +129,11 @@ export class MemoryStore implements ItemStore {
     return this.items.find((it) => it.id === id)
   }
 
-  related(id: number, limit = 10): ClipItem[] {
+  related(id: number, limit = 5): ClipItem[] {
     const base = this.get(id)
     if (!base) return []
     const windowMs = 5_000
-    const safeLimit = Math.min(Math.max(limit, 1), 10)
+    const safeLimit = Math.min(Math.max(limit, 1), 5)
     return this.items
       .filter(
         (item) =>

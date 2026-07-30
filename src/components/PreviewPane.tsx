@@ -10,6 +10,7 @@ import {
   Hash,
   FolderOpen,
   Link2,
+  ChevronRight,
 } from 'lucide-react'
 import type { ClipItem } from '@shared/types'
 import { badgeOf, colorValue } from '@/lib/kinds'
@@ -50,7 +51,7 @@ function useRelatedItems(item: ClipItem | null): ClipItem[] {
     }
     let alive = true
     const load = (): void => {
-      void api.relatedItems(id, 10).then((items) => {
+      void api.relatedItems(id, 5).then((items) => {
         if (alive) setRelated(items)
       })
     }
@@ -93,6 +94,7 @@ export function PreviewPane({
 }: Props) {
   const [draft, setDraft] = useState('')
   const [adding, setAdding] = useState(false)
+  const [relatedCollapsed, setRelatedCollapsed] = useState(false)
   const fullImage = useFullImage(item)
   const related = useRelatedItems(item)
 
@@ -219,37 +221,50 @@ export function PreviewPane({
           {/* 自动关联：不依赖内容分类，5 秒内复制的条目视为同一组 */}
           {related.length > 0 && (
             <div className="px-3.5 pt-2.5">
-              <div className="mb-1.5 flex items-center gap-1 text-[10.5px] font-medium text-black/45 dark:text-white/45">
+              <button
+                type="button"
+                onClick={() => setRelatedCollapsed((collapsed) => !collapsed)}
+                aria-expanded={!relatedCollapsed}
+                title={relatedCollapsed ? '展开关联配置' : '收起关联配置'}
+                className={`flex w-full items-center gap-1 rounded-md py-0.5 text-[10.5px] font-medium text-black/45 transition hover:text-black/65 dark:text-white/45 dark:hover:text-white/70 ${
+                  relatedCollapsed ? '' : 'mb-1.5'
+                }`}
+              >
                 <Link2 className="size-3" />
                 关联配置
                 <span className="ml-auto text-[9px] font-normal text-black/28 dark:text-white/28">
-                  5 秒内 · 最多 10 条
+                  5 秒内 · 最多 5 条
                 </span>
-              </div>
-              <div className="space-y-1">
-                {related.map((relatedItem) => {
-                  const relatedBadge = badgeOf(relatedItem)
-                  return (
-                    <button
-                      key={relatedItem.id}
-                      type="button"
-                      onClick={() => onCopy(relatedItem.id)}
-                      title="复制这条关联内容"
-                      className="flex h-8 w-full items-center gap-1.5 rounded-lg bg-black/[0.035] px-2 text-left transition hover:bg-brand-500/10 dark:bg-white/[0.055] dark:hover:bg-brand-500/14"
-                    >
-                      <span
-                        className={`shrink-0 rounded px-1 py-0.5 text-[8.5px] font-semibold ${relatedBadge.chip}`}
+                <ChevronRight
+                  className={`size-3 transition-transform ${relatedCollapsed ? '' : 'rotate-90'}`}
+                />
+              </button>
+              {!relatedCollapsed && (
+                <div className="space-y-1">
+                  {related.map((relatedItem) => {
+                    const relatedBadge = badgeOf(relatedItem)
+                    return (
+                      <button
+                        key={relatedItem.id}
+                        type="button"
+                        onClick={() => onCopy(relatedItem.id)}
+                        title="复制这条关联内容"
+                        className="flex h-8 w-full items-center gap-1.5 rounded-lg bg-black/[0.035] px-2 text-left transition hover:bg-brand-500/10 dark:bg-white/[0.055] dark:hover:bg-brand-500/14"
                       >
-                        {relatedBadge.label}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[10.5px] text-black/58 dark:text-white/60">
-                        {relatedPreview(relatedItem)}
-                      </span>
-                      <Copy className="size-3 shrink-0 text-black/28 dark:text-white/28" />
-                    </button>
-                  )
-                })}
-              </div>
+                        <span
+                          className={`shrink-0 rounded px-1 py-0.5 text-[8.5px] font-semibold ${relatedBadge.chip}`}
+                        >
+                          {relatedBadge.label}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[10.5px] text-black/58 dark:text-white/60">
+                          {relatedPreview(relatedItem)}
+                        </span>
+                        <Copy className="size-3 shrink-0 text-black/28 dark:text-white/28" />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 

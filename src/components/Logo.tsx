@@ -14,7 +14,7 @@ export function Logo({ className = '', title }: Props) {
     <span
       className={`inline-block overflow-hidden [&>svg]:block [&>svg]:size-full ${className}`}
       title={title}
-      aria-label="WitchCat Clipboard"
+      aria-label="Witch Clipboard"
       role="img"
       // 内容来自构建时打包进来的静态文件，不含任何外部输入
       dangerouslySetInnerHTML={{ __html: markup }}

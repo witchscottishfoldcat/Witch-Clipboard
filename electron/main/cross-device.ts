@@ -339,7 +339,7 @@ function mobilePage(computerName: string, pairCode: string): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#203638">
-  <title>WitchCat 跨设备剪贴板</title>
+  <title>Witch Clipboard · 跨设备剪贴板</title>
   <style>
     :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
     *{box-sizing:border-box}

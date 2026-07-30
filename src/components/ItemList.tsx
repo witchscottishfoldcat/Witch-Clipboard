@@ -62,7 +62,7 @@ export function ItemList({
           <>
             <div className="text-[13px] text-black/45 dark:text-white/45">还没有记录</div>
             <div className="text-[11px] leading-5 text-black/30 dark:text-white/30">
-              复制任何文字、图片或文件，WitchCat 会自动收进来。
+              复制任何文字、图片或文件，Witch Clipboard 会自动收进来。
               <br />
               之后按{' '}
               <kbd className="rounded border border-black/10 bg-black/4 px-1 font-sans dark:border-white/12 dark:bg-white/8">

@@ -135,14 +135,18 @@ export class SqliteStore implements ItemStore {
 
     const needle = q.trim()
     if (needle) {
+      const like = `%${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
       if (needle.length >= FTS_MIN_LEN) {
-        where.push('i.id IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?)')
-        params.push(`"${needle.replace(/"/g, '""')}"`)
+        where.push(
+          '(i.id IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?) OR i.source_app LIKE ? ESCAPE \'\\\')',
+        )
+        params.push(`"${needle.replace(/"/g, '""')}"`, like)
       } else {
         // 1~2 字的关键词 trigram 索引覆盖不到，直接扫
-        where.push('(i.preview LIKE ? ESCAPE \'\\\' OR i.text LIKE ? ESCAPE \'\\\')')
-        const like = `%${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
-        params.push(like, like)
+        where.push(
+          '(i.preview LIKE ? ESCAPE \'\\\' OR i.text LIKE ? ESCAPE \'\\\' OR i.source_app LIKE ? ESCAPE \'\\\')',
+        )
+        params.push(like, like, like)
       }
     }
 
@@ -166,10 +170,10 @@ export class SqliteStore implements ItemStore {
     return row ? toItem(row) : undefined
   }
 
-  related(id: number, limit = 10): ClipItem[] {
+  related(id: number, limit = 5): ClipItem[] {
     const base = this.get(id)
     if (!base) return []
-    const safeLimit = Math.min(Math.max(limit, 1), 10)
+    const safeLimit = Math.min(Math.max(limit, 1), 5)
     const rows = this.db
       .prepare(
         `${SELECT_BASE}

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="resources/icon-256.png" width="128" alt="WitchCat Clipboard" />
+  <img src="resources/icon-256.png" width="128" alt="Witch Clipboard" />
 </p>
 
-<h1 align="center">WitchCat Clipboard</h1>
+<h1 align="center">Witch Clipboard</h1>
 
 <p align="center">
   <b>Windows 剪贴板管理器</b><br />
@@ -38,7 +38,7 @@ Windows DPAPI 绑定到你的用户账户，没有账号、没有云、没有联
 ## 安装 / 运行
 
 从 [Releases](https://github.com/witchscottishfoldcat/WitchCat-Clipboard/releases/latest) 下载
-`WitchCat-Clipboard-<版本>-setup.exe`（NSIS，可选安装位置，卸载不删数据）。
+`Witch-Clipboard-<版本>-setup.exe`（NSIS，可选安装位置，卸载不删数据）。
 自己构建的产物在 `release/` 下。
 
 从源码跑：
@@ -141,24 +141,21 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
   <img src="resources/tray@2x.png" width="64" alt="托盘图标（简化版）" />
 </p>
 
-左边是主图标，右边是托盘专用的简化版——去掉了胡须、鼻子和帽带，帽子和眼睛放大一档。
-
-一个形状同时读出三层意思：**剪贴板的「夹子」就是巫师帽，「板面」就是猫脸**。
-所以它既是剪贴板、又是猫、又带着巫师的帽子，正好对上 WitchCat 这个名字。
+左边是主图标，右边是托盘专用的简化版。图标采用剪贴板轮廓与 `W` 字标，
+去掉小尺寸下容易糊成一团的装饰细节。
 
 | | |
 | --- | --- |
-| 底板 | 靛蓝 → 紫罗兰渐变 `#6366f1 → #a855f7`，和界面里的强调色是同一套 |
-| 猫脸 / 板面 | 纯白圆角矩形，两只耳朵从板面下方探出来 |
-| 巫师帽 | 深靛 `#1b1740`，向左倾 16°，帽带用琥珀 `#f59e0b` 提一口气 |
-| 五官 | 靛蓝 `#4f46e5`：眼睛、鼻子，胡须半透明 |
+| 底板 | 深石板蓝渐变，保证浅色和深色任务栏里都有清晰轮廓 |
+| 剪贴板 | 纯白圆角板面，顶部夹具使用青绿渐变 |
+| 字标 | 青绿 `W`，对应 Witch，并在 16–32 px 下保持可辨识 |
 
 设计母版是 SVG，PNG 全部由它光栅化生成，**不存在两份互相打架的设计源**：
 
 | 文件 | 用途 |
 | --- | --- |
 | `resources/logo.svg` | 母版（完整细节） |
-| `resources/logo-tray.svg` | 托盘专用简化版：去掉胡须、鼻子、帽带，帽子和眼睛放大一档——16~32px 下细节只会糊成一团 |
+| `resources/logo-tray.svg` | 托盘专用简化版：加粗剪贴板与 `W` 字标，保证 16–32 px 清晰 |
 | `resources/icon.png` / `icon-256.png` | 应用图标、安装包图标、README |
 | `resources/tray.png` / `tray@2x.png` | 托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏那张） |
 
@@ -238,7 +235,7 @@ blob 回收、`CF_HDROP` 真实往返、托盘单击竞态、点到别处收起�
 - **只做了 Windows。** `electron/main/win32.ts` 在非 Windows 上整体降级：没有序列号监听、
   没有自动粘贴、读不到文件列表。
 - **Win11 可能把托盘图标收进「溢出」区**，那样就看不到也点不到图标。这时右键任务栏 →
-  任务栏设置 → 系统托盘图标 → 其他系统托盘图标 → 把 WitchCat Clipboard 打开。图标在溢出区时
+  任务栏设置 → 系统托盘图标 → 其他系统托盘图标 → 把 Witch Clipboard 打开。图标在溢出区时
   `tray.getBounds()` 返回 0，程序会退回「在光标附近弹出」并在日志里警告。
 - `Ctrl+,` 打开设置在中文输入法激活时可能被 IME 吞掉，用齿轮按钮。
 - 渲染包约 970 KB（React + motion 为主）。本地加载无感，没做拆包。

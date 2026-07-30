@@ -97,7 +97,7 @@ export function registerIpc(deps: IpcDeps): void {
     return png ? `data:image/png;base64,${png.toString('base64')}` : null
   })
   ipcMain.handle('items:related', (_e, id: number, limit?: number) =>
-    store.related(id, Math.min(Math.max(limit ?? 10, 1), 10)),
+    store.related(id, Math.min(Math.max(limit ?? 5, 1), 5)),
   )
 
   ipcMain.handle('panel:hide', (event) => {

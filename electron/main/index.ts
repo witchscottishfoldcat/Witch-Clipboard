@@ -58,7 +58,7 @@ function bootstrap(): void {
   app.whenReady().then(startup).catch((err) => {
     // 启动链路里的异常不能静默：吞掉的话表现就是「托盘有图标但面板永远不出来」
     console.error('[main] 启动失败：', err)
-    dialog.showErrorBox('WitchCat 粘贴板启动失败', String((err as Error)?.stack ?? err))
+    dialog.showErrorBox('Witch Clipboard 启动失败', String((err as Error)?.stack ?? err))
     app.exit(1)
   })
 
@@ -133,7 +133,7 @@ function bootstrap(): void {
           const fromMini = focused === getMini()
 
           // 从外部程序直接按快粘键时，当前前台窗口就是目标；
-          // 从面板里按时沿用面板弹出前记住的目标，不能把 WitchCat 自己记成目标。
+          // 从面板里按时沿用面板弹出前记住的目标，不能把 Witch Clipboard 自己记成目标。
           if (!fromPanel && !fromMini) rememberForegroundWindow()
 
           const item = store?.list({ limit: 9 }).items[index]
@@ -159,8 +159,8 @@ function bootstrap(): void {
     createTray()
     updateTrayTooltip(
       ok
-        ? `WitchCat 粘贴板 · ${currentHotkey()}${quickPasteOk ? '' : ' · 快粘热键被占用'}`
-        : 'WitchCat 粘贴板 · 唤出热键被占用',
+        ? `Witch Clipboard · ${currentHotkey()}${quickPasteOk ? '' : ' · 快粘热键被占用'}`
+        : 'Witch Clipboard · 唤出热键被占用',
     )
 
     // 开机自启的设置以配置为准，避免用户在系统里改过之后两边不一致

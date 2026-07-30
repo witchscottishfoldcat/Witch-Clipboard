@@ -269,13 +269,29 @@ export async function runSelfTest(): Promise<void> {
     bytes: 11,
     sourceApp: 'test.exe',
   })
-  const relatedIds = new Set(store.related(keyItem.id).map((item) => item.id))
+  const plainItem = store.add({
+    kind: 'text',
+    text: '47d0a59a9dec164a2cd2e01cc92f1601',
+    preview: '47d0a59a9dec164a2cd2e01cc92f1601',
+    autoKind: 'plain',
+    hash: sha256('item-plain-config'),
+    blobName: null,
+    thumb: null,
+    width: null,
+    height: null,
+    bytes: 32,
+    sourceApp: 'test.exe',
+  })
+  const relatedIds = new Set(store.related(plainItem.id).map((item) => item.id))
+  check('普通文字也能触发时间关联', relatedIds.has(keyItem.id))
   check('关联检索找到 URL', relatedIds.has(urlItem.id))
   check('关联检索找到模型', relatedIds.has(modelItem.id))
+  check('关联结果上限为 10 条', store.related(plainItem.id, 99).length <= 10)
   check('按模型类型筛选', store.list({ autoKind: 'model' }).items[0]?.id === modelItem.id)
   store.remove(keyItem.id)
   store.remove(urlItem.id)
   store.remove(modelItem.id)
+  store.remove(plainItem.id)
 
   console.log('\n置顶与保留策略')
   store.togglePin(a.id)

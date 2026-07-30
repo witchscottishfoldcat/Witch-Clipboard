@@ -166,28 +166,21 @@ export class SqliteStore implements ItemStore {
     return row ? toItem(row) : undefined
   }
 
-  related(id: number, limit = 6): ClipItem[] {
+  related(id: number, limit = 10): ClipItem[] {
     const base = this.get(id)
-    if (
-      !base ||
-      base.kind !== 'text' ||
-      !['key', 'url', 'model'].includes(base.autoKind)
-    ) {
-      return []
-    }
+    if (!base) return []
+    const safeLimit = Math.min(Math.max(limit, 1), 10)
     const rows = this.db
       .prepare(
         `${SELECT_BASE}
          WHERE i.id <> ?
-           AND i.kind = 'text'
-           AND i.auto_kind IN ('key', 'url', 'model')
            AND abs(i.last_used_at - ?) <= ?
          ORDER BY
-           CASE WHEN coalesce(i.source_app, '') = coalesce(?, '') THEN 0 ELSE 1 END,
-           abs(i.last_used_at - ?) ASC
+           abs(i.last_used_at - ?) ASC,
+           i.last_used_at DESC
          LIMIT ?`,
       )
-      .all(id, base.lastUsedAt, 15 * 60_000, base.sourceApp, base.lastUsedAt, limit) as Row[]
+      .all(id, base.lastUsedAt, 5_000, base.lastUsedAt, safeLimit) as Row[]
     return rows.map(toItem)
   }
 

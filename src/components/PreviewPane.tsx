@@ -41,8 +41,7 @@ function useFullImage(item: ClipItem | null): string | null {
 
 function useRelatedItems(item: ClipItem | null): ClipItem[] {
   const [related, setRelated] = useState<ClipItem[]>([])
-  const id =
-    item?.kind === 'text' && ['key', 'url', 'model'].includes(item.autoKind) ? item.id : null
+  const id = item?.id ?? null
 
   useEffect(() => {
     if (id === null) {
@@ -51,7 +50,7 @@ function useRelatedItems(item: ClipItem | null): ClipItem[] {
     }
     let alive = true
     const load = (): void => {
-      void api.relatedItems(id, 4).then((items) => {
+      void api.relatedItems(id, 10).then((items) => {
         if (alive) setRelated(items)
       })
     }
@@ -217,14 +216,14 @@ export function PreviewPane({
             )}
           </div>
 
-          {/* 自动关联：同一来源、15 分钟内复制的 Key + URL + 模型名称 */}
+          {/* 自动关联：不依赖内容分类，5 秒内复制的条目视为同一组 */}
           {related.length > 0 && (
             <div className="px-3.5 pt-2.5">
               <div className="mb-1.5 flex items-center gap-1 text-[10.5px] font-medium text-black/45 dark:text-white/45">
                 <Link2 className="size-3" />
                 关联配置
                 <span className="ml-auto text-[9px] font-normal text-black/28 dark:text-white/28">
-                  15 分钟内
+                  5 秒内 · 最多 10 条
                 </span>
               </div>
               <div className="space-y-1">

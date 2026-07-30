@@ -33,7 +33,7 @@ export interface ItemStore {
   add(input: NewItem): AddResult
   list(query: ListQuery): ListResult
   get(id: number): ClipItem | undefined
-  /** 同一复制会话内的 Key、URL、模型名称（15 分钟窗口，同来源优先） */
+  /** 5 秒内连续复制的关联条目，最多返回 10 条 */
   related(id: number, limit?: number): ClipItem[]
   /** 取解密后的原始 PNG，用于写回剪贴板和大图预览 */
   imagePng(id: number): Buffer | null
@@ -128,26 +128,23 @@ export class MemoryStore implements ItemStore {
     return this.items.find((it) => it.id === id)
   }
 
-  related(id: number, limit = 6): ClipItem[] {
+  related(id: number, limit = 10): ClipItem[] {
     const base = this.get(id)
-    if (!base || !isAssociable(base)) return []
-    const windowMs = 15 * 60_000
+    if (!base) return []
+    const windowMs = 5_000
+    const safeLimit = Math.min(Math.max(limit, 1), 10)
     return this.items
       .filter(
         (item) =>
           item.id !== id &&
-          isAssociable(item) &&
           Math.abs(item.lastUsedAt - base.lastUsedAt) <= windowMs,
       )
-      .sort((a, b) => {
-        const aSameSource = a.sourceApp === base.sourceApp ? 0 : 1
-        const bSameSource = b.sourceApp === base.sourceApp ? 0 : 1
-        return (
-          aSameSource - bSameSource ||
-          Math.abs(a.lastUsedAt - base.lastUsedAt) - Math.abs(b.lastUsedAt - base.lastUsedAt)
-        )
-      })
-      .slice(0, limit)
+      .sort(
+        (a, b) =>
+          Math.abs(a.lastUsedAt - base.lastUsedAt) -
+            Math.abs(b.lastUsedAt - base.lastUsedAt) || b.lastUsedAt - a.lastUsedAt,
+      )
+      .slice(0, safeLimit)
   }
 
   imagePng(id: number): Buffer | null {
@@ -224,11 +221,4 @@ export class MemoryStore implements ItemStore {
     this.items = []
     this.images.clear()
   }
-}
-
-function isAssociable(item: ClipItem): boolean {
-  return (
-    item.kind === 'text' &&
-    (item.autoKind === 'key' || item.autoKind === 'url' || item.autoKind === 'model')
-  )
 }

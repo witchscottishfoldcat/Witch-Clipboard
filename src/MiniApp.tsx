@@ -145,7 +145,7 @@ export default function MiniApp() {
     <div className="relative flex h-full flex-col overflow-hidden bg-white/78 text-black dark:bg-[#0b0b12]/76 dark:text-white">
       {/* 顶栏：可拖动，右侧是展开和关闭 */}
       <div className="drag-region flex items-center gap-2 px-2.5 pt-2.5 pb-1.5">
-        <Logo className="no-drag size-6 shrink-0 rounded-lg" />
+        <Logo className="no-drag size-6 shrink-0 overflow-hidden rounded-[9px] bg-white p-[1.5px] shadow-sm shadow-black/12 ring-1 ring-black/5 dark:shadow-black/25 dark:ring-white/15" />
 
         {searching ? (
           <div className="no-drag relative flex-1">

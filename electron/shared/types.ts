@@ -3,7 +3,7 @@
 export type ItemKind = 'text' | 'image' | 'files'
 
 /** 自动识别出的文本子类型，用于着色和快速筛选 */
-export type AutoKind = 'plain' | 'url' | 'code' | 'color' | 'path' | 'email' | 'number'
+export type AutoKind = 'plain' | 'url' | 'key' | 'code' | 'color' | 'path' | 'email' | 'number'
 
 export interface ClipItem {
   id: number
@@ -33,6 +33,8 @@ export interface ListQuery {
   q?: string
   /** 只看某个 kind */
   kind?: ItemKind | null
+  /** 只看某个自动识别的文本子类型 */
+  autoKind?: AutoKind | null
   /** 必须包含的标签 */
   tag?: string | null
   /** 只看置顶 */

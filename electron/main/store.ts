@@ -95,11 +95,20 @@ export class MemoryStore implements ItemStore {
   }
 
   list(query: ListQuery): ListResult {
-    const { q = '', kind = null, tag = null, pinnedOnly = false, limit = 300, offset = 0 } = query
+    const {
+      q = '',
+      kind = null,
+      autoKind = null,
+      tag = null,
+      pinnedOnly = false,
+      limit = 300,
+      offset = 0,
+    } = query
     const needle = q.trim().toLowerCase()
 
     const rows = this.items.filter((it) => {
       if (kind && it.kind !== kind) return false
+      if (autoKind && it.autoKind !== autoKind) return false
       if (tag && !it.tags.includes(tag)) return false
       if (pinnedOnly && !it.pinned) return false
       if (needle) {

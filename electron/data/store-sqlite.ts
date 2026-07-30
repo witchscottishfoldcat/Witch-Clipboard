@@ -105,13 +105,25 @@ export class SqliteStore implements ItemStore {
   }
 
   list(query: ListQuery): ListResult {
-    const { q = '', kind = null, tag = null, pinnedOnly = false, limit = 300, offset = 0 } = query
+    const {
+      q = '',
+      kind = null,
+      autoKind = null,
+      tag = null,
+      pinnedOnly = false,
+      limit = 300,
+      offset = 0,
+    } = query
     const where: string[] = []
     const params: unknown[] = []
 
     if (kind) {
       where.push('i.kind = ?')
       params.push(kind)
+    }
+    if (autoKind) {
+      where.push('i.auto_kind = ?')
+      params.push(autoKind)
     }
     if (pinnedOnly) where.push('i.pinned = 1')
     if (tag) {

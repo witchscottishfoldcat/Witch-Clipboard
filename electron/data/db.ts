@@ -3,10 +3,11 @@ import { app, dialog } from 'electron'
 import { existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { dbKeyHex } from './crypto'
+import { classify } from '@shared/classify'
 
 export type Db = Database.Database
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 3
 
 const SCHEMA = `
 CREATE TABLE items (
@@ -29,6 +30,7 @@ CREATE TABLE items (
 );
 CREATE INDEX idx_items_order ON items(pinned DESC, last_used_at DESC);
 CREATE INDEX idx_items_kind  ON items(kind);
+CREATE INDEX idx_items_auto_kind ON items(auto_kind);
 
 CREATE TABLE tags (
   id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,5 +137,21 @@ function migrate(db: Db): void {
       throw err
     }
   }
-  // 后续版本在这里追加 if (current < 2) { ... }
+  if (current < 2) {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_items_auto_kind ON items(auto_kind)')
+    db.pragma('user_version = 2')
+  }
+  if (current < 3) {
+    const rows = db
+      .prepare("SELECT id, text FROM items WHERE kind = 'text' AND auto_kind = 'plain'")
+      .all() as { id: number; text: string | null }[]
+    const update = db.prepare("UPDATE items SET auto_kind = 'key' WHERE id = ?")
+    const backfill = db.transaction(() => {
+      for (const row of rows) {
+        if (row.text && classify(row.text) === 'key') update.run(row.id)
+      }
+    })
+    backfill()
+    db.pragma('user_version = 3')
+  }
 }

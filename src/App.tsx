@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
-import type { ItemKind, ListQuery, PasteOutcome, UpdateStatus } from '@shared/types'
+import type { AutoKind, ItemKind, ListQuery, PasteOutcome, UpdateStatus } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems, useStats, useTags } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
@@ -26,6 +26,7 @@ export default function App() {
 
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<ItemKind | null>(null)
+  const [autoKind, setAutoKind] = useState<AutoKind | null>(null)
   const [tag, setTag] = useState<string | null>(null)
   const [pinnedOnly, setPinnedOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -39,14 +40,17 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastSeq = useRef(0)
 
-  const query = useMemo<ListQuery>(() => ({ q, kind, tag, pinnedOnly }), [q, kind, tag, pinnedOnly])
+  const query = useMemo<ListQuery>(
+    () => ({ q, kind, autoKind, tag, pinnedOnly }),
+    [q, kind, autoKind, tag, pinnedOnly],
+  )
   const { items, total, loading } = useItems(query)
   const stats = useStats()
   const tags = useTags()
 
   const selected = items.find((it) => it.id === selectedId) ?? null
   const index = items.findIndex((it) => it.id === selectedId)
-  const filtered = Boolean(q || kind || tag || pinnedOnly)
+  const filtered = Boolean(q || kind || autoKind || tag || pinnedOnly)
 
   const showToast = useCallback((text: string, tone: 'ok' | 'warn' = 'ok') => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -84,6 +88,7 @@ export default function App() {
       api.onPanelShown(() => {
         setQ('')
         setKind(null)
+        setAutoKind(null)
         setTag(null)
         setPinnedOnly(false)
         setSettingsOpen(false)
@@ -231,6 +236,8 @@ export default function App() {
       <FilterBar
         kind={kind}
         onKind={setKind}
+        autoKind={autoKind}
+        onAutoKind={setAutoKind}
         tags={tags}
         activeTag={tag}
         onTag={setTag}

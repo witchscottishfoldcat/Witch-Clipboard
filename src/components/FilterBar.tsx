@@ -1,10 +1,12 @@
 import { Pin, Tag as TagIcon } from 'lucide-react'
-import type { ItemKind } from '@shared/types'
+import type { AutoKind, ItemKind } from '@shared/types'
 import { KIND_FILTERS } from '@/lib/kinds'
 
 interface Props {
   kind: ItemKind | null
   onKind: (k: ItemKind | null) => void
+  autoKind: AutoKind | null
+  onAutoKind: (k: AutoKind | null) => void
   tags: string[]
   activeTag: string | null
   onTag: (t: string | null) => void
@@ -21,6 +23,8 @@ const chipOn = 'bg-brand-500 text-white shadow-sm shadow-brand-500/30'
 export function FilterBar({
   kind,
   onKind,
+  autoKind,
+  onAutoKind,
   tags,
   activeTag,
   onTag,
@@ -32,8 +36,13 @@ export function FilterBar({
       {KIND_FILTERS.map((f) => (
         <button
           key={f.id}
-          onClick={() => onKind(f.kind)}
-          className={`${chipBase} ${kind === f.kind ? chipOn : chipOff}`}
+          onClick={() => {
+            onKind(f.kind)
+            onAutoKind(f.autoKind)
+          }}
+          className={`${chipBase} ${
+            kind === f.kind && autoKind === f.autoKind ? chipOn : chipOff
+          }`}
         >
           {f.label}
         </button>

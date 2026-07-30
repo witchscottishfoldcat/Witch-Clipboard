@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Clipboard, Maximize2, Search, X } from 'lucide-react'
 import { Logo } from '@/components/Logo'
-import type { ItemKind, ListQuery, PasteOutcome } from '@shared/types'
+import type { AutoKind, ItemKind, ListQuery, PasteOutcome } from '@shared/types'
 import { api } from '@/lib/api'
 import { useItems } from '@/hooks/useItems'
 import { useTheme } from '@/hooks/useTheme'
@@ -25,6 +25,7 @@ export default function MiniApp() {
 
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<ItemKind | null>(null)
+  const [autoKind, setAutoKind] = useState<AutoKind | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [searching, setSearching] = useState(false)
@@ -34,7 +35,10 @@ export default function MiniApp() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastSeq = useRef(0)
 
-  const query = useMemo<ListQuery>(() => ({ q, kind, limit: LIMIT }), [q, kind])
+  const query = useMemo<ListQuery>(
+    () => ({ q, kind, autoKind, limit: LIMIT }),
+    [q, kind, autoKind],
+  )
   const { items } = useItems(query)
 
   const index = items.findIndex((it) => it.id === selectedId)
@@ -64,6 +68,7 @@ export default function MiniApp() {
       api.onPanelShown(() => {
         setQ('')
         setKind(null)
+        setAutoKind(null)
         setSearching(false)
         loadQuickPasteModifiers()
       }),
@@ -179,9 +184,12 @@ export default function MiniApp() {
         {KIND_FILTERS.map((f) => (
           <button
             key={f.id}
-            onClick={() => setKind(f.kind)}
+            onClick={() => {
+              setKind(f.kind)
+              setAutoKind(f.autoKind)
+            }}
             className={`h-5.5 rounded-full px-2 text-[10.5px] font-medium transition ${
-              kind === f.kind
+              kind === f.kind && autoKind === f.autoKind
                 ? 'bg-brand-500 text-white'
                 : 'bg-black/5 text-black/50 hover:bg-black/10 dark:bg-white/7 dark:text-white/50 dark:hover:bg-white/12'
             }`}

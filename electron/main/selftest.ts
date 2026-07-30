@@ -55,6 +55,9 @@ export async function runSelfTest(): Promise<void> {
 
   console.log('\n内容分类')
   check('URL', classify('https://example.com/a?b=1') === 'url')
+  check('API Key', classify('sk-proj-1234567890abcdefghijklmnop') === 'key')
+  check('命名 Key', classify('API_KEY=abc123xyz789secret') === 'key')
+  check('许可证 Key', classify('ABCD-1234-EFGH-5678') === 'key')
   check('邮箱', classify('a.b@example.com') === 'email')
   check('颜色', classify('#8b5cf6') === 'color')
   check('Windows 路径', classify('D:\\ADM\\WitchCat\\package.json') === 'path')
@@ -147,6 +150,23 @@ export async function runSelfTest(): Promise<void> {
   check('原图解密后与写入一致', store.imagePng(img.id)?.equals(png) === true)
   check('同图再次写入不重复落盘', blobs.listAll().length === 1)
   check('按 kind 筛选图片', store.list({ kind: 'image' }).total === 1)
+
+  const keyItem = store.add({
+    kind: 'text',
+    text: 'sk-proj-1234567890abcdefghijklmnop',
+    preview: 'sk-proj-1234567890abcdefghijklmnop',
+    autoKind: 'key',
+    hash: sha256('item-key'),
+    blobName: null,
+    thumb: null,
+    width: null,
+    height: null,
+    bytes: 36,
+    sourceApp: 'test.exe',
+  })
+  check('按链接类型筛选', store.list({ autoKind: 'url' }).total === 0)
+  check('按 Key 类型筛选', store.list({ autoKind: 'key' }).items[0]?.id === keyItem.id)
+  store.remove(keyItem.id)
 
   console.log('\n置顶与保留策略')
   store.togglePin(a.id)

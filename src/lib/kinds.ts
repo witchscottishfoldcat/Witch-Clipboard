@@ -18,6 +18,11 @@ const BADGES: Record<AutoKind | 'image' | 'files', Badge> = {
     chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
     bar: 'bg-sky-400',
   },
+  key: {
+    label: 'Key',
+    chip: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
+    bar: 'bg-fuchsia-400',
+  },
   code: {
     label: '代码',
     chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
@@ -65,13 +70,16 @@ export interface KindFilter {
   id: string
   label: string
   kind: ItemKind | null
+  autoKind: AutoKind | null
 }
 
 export const KIND_FILTERS: KindFilter[] = [
-  { id: 'all', label: '全部', kind: null },
-  { id: 'text', label: '文字', kind: 'text' },
-  { id: 'image', label: '图片', kind: 'image' },
-  { id: 'files', label: '文件', kind: 'files' },
+  { id: 'all', label: '全部', kind: null, autoKind: null },
+  { id: 'text', label: '文字', kind: 'text', autoKind: null },
+  { id: 'image', label: '图片', kind: 'image', autoKind: null },
+  { id: 'files', label: '文件', kind: 'files', autoKind: null },
+  { id: 'url', label: '链接', kind: 'text', autoKind: 'url' },
+  { id: 'key', label: 'Key', kind: 'text', autoKind: 'key' },
 ]
 
 /** 颜色类条目：抽出可直接用于 style 的颜色值 */

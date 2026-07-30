@@ -17,6 +17,8 @@ interface Props {
 }
 
 const ROW = 72 // 68px 行高 + 4px 间隔
+/** 给首行圆角和选中 ring 留空间，避免贴着滚动容器顶边被裁掉 */
+const LIST_TOP_GAP = 5
 
 export function ItemList({
   items,
@@ -35,6 +37,7 @@ export function ItemList({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW,
     overscan: 6,
+    scrollPaddingStart: LIST_TOP_GAP,
   })
 
   // 键盘移动选中项时保证可见。
@@ -82,14 +85,20 @@ export function ItemList({
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 pb-2">
-      <div className="relative w-full" style={{ height: virt.getTotalSize() }}>
+      <div
+        className="relative w-full"
+        style={{ height: virt.getTotalSize() + LIST_TOP_GAP }}
+      >
         {virt.getVirtualItems().map((row) => {
           const item = items[row.index]
           return (
             <div
               key={item.id}
               className="absolute top-0 left-0 w-full pb-1"
-              style={{ height: ROW, transform: `translateY(${row.start}px)` }}
+              style={{
+                height: ROW,
+                transform: `translateY(${row.start + LIST_TOP_GAP}px)`,
+              }}
             >
               <ItemRow
                 item={item}

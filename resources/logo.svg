@@ -1,35 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Witch Clipboard</title>
   <defs>
-    <linearGradient id="tile" x1="72" y1="48" x2="438" y2="470" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#182535" />
-      <stop offset="1" stop-color="#071018" />
+    <linearGradient id="gold" x1="62" y1="36" x2="448" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe69a" />
+      <stop offset=".55" stop-color="#f6d574" />
+      <stop offset="1" stop-color="#dfad35" />
     </linearGradient>
-    <linearGradient id="accent" x1="176" y1="210" x2="338" y2="352" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67e8f9" />
-      <stop offset="1" stop-color="#34d399" />
+    <linearGradient id="paper" x1="138" y1="232" x2="380" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff3c7" />
+      <stop offset="1" stop-color="#f8d878" />
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
-      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity=".28" />
+    <linearGradient id="purple" x1="184" y1="64" x2="332" y2="245" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#61328c" />
+      <stop offset=".58" stop-color="#45156f" />
+      <stop offset="1" stop-color="#2d074c" />
+    </linearGradient>
+    <filter id="lift" x="-25%" y="-25%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#431064" flood-opacity=".22" />
     </filter>
   </defs>
 
-  <rect width="512" height="512" rx="118" fill="url(#tile)" />
-  <rect x="14" y="14" width="484" height="484" rx="105" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="2" />
+  <!-- WitchDrawer 同系列的紫色背板与暖金面板 -->
+  <rect x="2" y="2" width="508" height="508" rx="112" fill="#421368" />
+  <rect x="17" y="5" width="493" height="493" rx="106" fill="url(#gold)" />
+  <rect x="25" y="23" width="462" height="462" rx="88" fill="#ffe49a" />
+  <path d="M171 12 H402 Q486 12 500 96" fill="none" stroke="#efc85e" stroke-width="20" stroke-linecap="round" opacity=".8" />
+  <path d="M12 170 V340" fill="none" stroke="#edbe4d" stroke-width="20" stroke-linecap="round" />
+  <path d="M173 500 H405 Q481 500 500 424" fill="none" stroke="#e8b83f" stroke-width="20" stroke-linecap="round" />
 
-  <g filter="url(#shadow)">
-    <rect x="120" y="108" width="272" height="318" rx="62" fill="#f8fafc" />
-    <rect x="196" y="72" width="120" height="76" rx="30" fill="url(#accent)" />
-    <rect x="224" y="94" width="64" height="18" rx="9" fill="#071018" fill-opacity=".72" />
+  <!-- 剪贴板板面 -->
+  <g filter="url(#lift)">
+    <rect x="104" y="210" width="304" height="244" rx="34" fill="url(#paper)" stroke="#351052" stroke-width="14" />
+    <path d="M154 305 H358" fill="none" stroke="#4a176f" stroke-width="15" stroke-linecap="round" />
+    <path d="M154 352 H330" fill="none" stroke="#4a176f" stroke-width="15" stroke-linecap="round" />
+    <path d="M154 399 H294" fill="none" stroke="#4a176f" stroke-width="15" stroke-linecap="round" />
   </g>
 
+  <!-- 巫师帽同时充当剪贴板顶部夹具 -->
   <path
-    d="M174 228 L211 342 L257 274 L301 342 L338 228"
-    fill="none"
-    stroke="url(#accent)"
-    stroke-width="28"
-    stroke-linecap="round"
+    d="M178 184 C200 139 216 87 244 57 C257 43 274 44 287 56 L350 113 C363 125 352 143 335 136 L302 123 C309 146 319 166 327 184 C288 199 219 200 178 184 Z"
+    fill="url(#purple)"
+    stroke="#351052"
+    stroke-width="13"
     stroke-linejoin="round"
   />
-  <path d="M338 190 L347 210 L367 219 L347 228 L338 248 L329 228 L309 219 L329 210 Z" fill="#22d3ee" />
+  <path
+    d="M113 207 C120 180 180 164 256 164 C332 164 392 180 399 207 C405 231 341 250 256 250 C171 250 107 231 113 207 Z"
+    fill="url(#purple)"
+    stroke="#351052"
+    stroke-width="14"
+  />
+  <path
+    d="M191 143 C226 158 282 161 311 146 L324 175 C282 190 222 189 179 172 Z"
+    fill="#efc653"
+    stroke="#351052"
+    stroke-width="11"
+    stroke-linejoin="round"
+  />
+  <path d="M146 221 C190 244 320 244 367 220" fill="none" stroke="#7b46a0" stroke-width="8" stroke-linecap="round" opacity=".48" />
 </svg>

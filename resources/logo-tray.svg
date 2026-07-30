@@ -1,25 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <title>Witch Clipboard · 托盘图标</title>
   <defs>
-    <linearGradient id="tile" x1="70" y1="50" x2="442" y2="470" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#182535" />
-      <stop offset="1" stop-color="#071018" />
+    <linearGradient id="gold" x1="52" y1="35" x2="455" y2="478" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe69a" />
+      <stop offset="1" stop-color="#e2ae37" />
     </linearGradient>
-    <linearGradient id="accent" x1="158" y1="210" x2="354" y2="354" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67e8f9" />
-      <stop offset="1" stop-color="#34d399" />
+    <linearGradient id="purple" x1="184" y1="58" x2="334" y2="247" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60318a" />
+      <stop offset="1" stop-color="#2e084d" />
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="118" fill="url(#tile)" />
-  <rect x="116" y="106" width="280" height="322" rx="66" fill="#f8fafc" />
-  <rect x="190" y="66" width="132" height="88" rx="34" fill="url(#accent)" />
+  <rect x="2" y="2" width="508" height="508" rx="112" fill="#421368" />
+  <rect x="18" y="10" width="484" height="484" rx="101" fill="url(#gold)" />
+  <rect x="30" y="28" width="452" height="452" rx="82" fill="#ffe49a" />
+
+  <rect x="100" y="215" width="312" height="240" rx="34" fill="#ffedb5" stroke="#351052" stroke-width="18" />
+  <path d="M151 321 H361 M151 374 H321" fill="none" stroke="#45146a" stroke-width="20" stroke-linecap="round" />
+
   <path
-    d="M166 226 L207 348 L257 276 L305 348 L346 226"
-    fill="none"
-    stroke="url(#accent)"
-    stroke-width="34"
-    stroke-linecap="round"
+    d="M176 184 C198 137 217 85 244 56 C257 42 274 43 288 56 L352 115 C364 126 352 144 336 136 L301 122 C309 147 319 166 328 185 C285 202 219 202 176 184 Z"
+    fill="url(#purple)"
+    stroke="#351052"
+    stroke-width="17"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M108 208 C116 178 178 160 256 160 C334 160 396 178 404 208 C411 235 344 255 256 255 C168 255 101 235 108 208 Z"
+    fill="url(#purple)"
+    stroke="#351052"
+    stroke-width="18"
+  />
+  <path
+    d="M190 141 C226 157 282 161 313 145 L328 178 C283 194 219 192 176 173 Z"
+    fill="#efc653"
+    stroke="#351052"
+    stroke-width="14"
     stroke-linejoin="round"
   />
 </svg>

@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run selftest
+      - run: npm run build
       - name: Build Windows
         run: npx electron-builder --win nsis --${{ matrix.arch }} --publish never
       - uses: actions/upload-artifact@v4
@@ -56,6 +57,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run build
       - name: Build macOS
         run: npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
       - uses: actions/upload-artifact@v4

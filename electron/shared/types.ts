@@ -120,6 +120,24 @@ export interface SecurityInfo {
   dataDir: string
 }
 
+export interface CrossDeviceStatus {
+  running: boolean
+  /** 手机扫码访问的局域网地址 */
+  url: string | null
+  /** 配对地址的短码，仅用于让用户核对当前会话 */
+  pairCode: string | null
+  /** 最近 5 秒内是否有手机保持连接 */
+  connected: boolean
+  lastSeenAt: number | null
+  lastSentAt: number | null
+  lastSentPreview: string | null
+}
+
+export interface CrossDeviceSendResult {
+  ok: boolean
+  reason?: 'not-running' | 'not-found' | 'unsupported' | 'sensitive' | 'too-large'
+}
+
 /** contextBridge 暴露给渲染进程的全部能力 */
 export interface ClipboardApi {
   list(query: ListQuery): Promise<ListResult>
@@ -143,6 +161,13 @@ export interface ClipboardApi {
   getSettings(): Promise<Settings>
   saveSettings(patch: Partial<Settings>): Promise<Settings>
   security(): Promise<SecurityInfo>
+
+  /** 启动同一局域网内的手机配对服务 */
+  startCrossDevice(): Promise<CrossDeviceStatus>
+  stopCrossDevice(): Promise<CrossDeviceStatus>
+  crossDeviceStatus(): Promise<CrossDeviceStatus>
+  /** 手动把指定历史条目发送到已配对手机 */
+  sendCrossDeviceItem(id: number): Promise<CrossDeviceSendResult>
 
   /** 手动检查更新 */
   checkUpdate(): Promise<UpdateStatus>

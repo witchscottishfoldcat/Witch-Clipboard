@@ -1,4 +1,4 @@
-import { Search, X, Settings as SettingsIcon } from 'lucide-react'
+import { Search, Smartphone, X, Settings as SettingsIcon } from 'lucide-react'
 import type { RefObject } from 'react'
 import type { Stats } from '@shared/types'
 import { formatBytes } from '@/lib/format'
@@ -11,9 +11,18 @@ interface Props {
   stats: Stats | null
   onClose: () => void
   onOpenSettings: () => void
+  onOpenCrossDevice: () => void
 }
 
-export function Header({ value, onChange, inputRef, stats, onClose, onOpenSettings }: Props) {
+export function Header({
+  value,
+  onChange,
+  inputRef,
+  stats,
+  onClose,
+  onOpenSettings,
+  onOpenCrossDevice,
+}: Props) {
   return (
     <div className="drag-region flex items-center gap-3 px-3.5 pt-3 pb-2.5">
       <Logo className="no-drag size-8 shrink-0 rounded-[10px] shadow-lg shadow-brand-500/25" />
@@ -49,6 +58,13 @@ export function Header({ value, onChange, inputRef, stats, onClose, onOpenSettin
       )}
 
       <div className="no-drag flex shrink-0 items-center gap-1">
+        <button
+          onClick={onOpenCrossDevice}
+          title="跨设备剪贴板"
+          className="flex size-7 items-center justify-center rounded-lg text-black/45 transition hover:bg-brand-500/12 hover:text-brand-600 dark:text-white/45 dark:hover:bg-brand-400/12 dark:hover:text-brand-300"
+        >
+          <Smartphone className="size-4" />
+        </button>
         <button
           onClick={onOpenSettings}
           title="设置"

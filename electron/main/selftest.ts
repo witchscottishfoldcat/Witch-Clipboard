@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { classify, makePreview } from '@shared/classify'
+import { CrossDeviceService, isSensitiveSyncText } from './cross-device'
 
 let passed = 0
 let failed = 0
@@ -65,6 +66,52 @@ export async function runSelfTest(): Promise<void> {
   check('代码', classify('export const a = 1;\nfunction b() {\n  return a\n}') === 'code')
   check('普通中文不误判为代码', classify('今天下午三点开会，讨论剪贴板的保留策略') === 'plain')
   check('摘要取首个非空行', makePreview('\n\n  第一行  内容\n第二行') === '第一行 内容')
+  check('跨设备拦截单行 Key', isSensitiveSyncText('sk-proj-1234567890abcdefghijklmnop'))
+  check('跨设备拦截多行中的 Key', isSensitiveSyncText('账号配置\nAPI_KEY=abc123xyz789secret'))
+  check('跨设备拦截密码字段', isSensitiveSyncText('password: hunter2026'))
+  check('跨设备允许普通文字', !isSensitiveSyncText('手机和电脑之间发送这段文字'))
+
+  console.log('\n跨设备')
+  let phoneText = ''
+  const crossDevice = new CrossDeviceService({
+    onPhoneText: (text) => {
+      phoneText = text
+    },
+    onStatusChanged: () => {},
+  })
+  const crossStatus = await crossDevice.start()
+  check('局域网服务启动', crossStatus.running && Boolean(crossStatus.url))
+  if (crossStatus.url) {
+    const pairUrl = new URL(crossStatus.url)
+    const loopback = new URL(crossStatus.url)
+    loopback.hostname = '127.0.0.1'
+    const token = pairUrl.pathname.split('/').pop()
+    const page = await fetch(loopback)
+    check('手机配对页可访问', page.ok && (await page.text()).includes('WitchCat 跨设备剪贴板'))
+
+    const sent = crossDevice.publishText('从电脑发到手机的测试文字')
+    check('电脑文字允许发送', sent.ok)
+    const state = await fetch(`http://127.0.0.1:${pairUrl.port}/api/state/${token}`).then((res) =>
+      res.json() as Promise<{ latest?: { text?: string } }>,
+    )
+    check('手机可以收到电脑文字', state.latest?.text === '从电脑发到手机的测试文字')
+
+    const phoneResponse = await fetch(`http://127.0.0.1:${pairUrl.port}/api/send/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '从手机发到电脑的测试文字' }),
+    })
+    check('手机文字允许发送', phoneResponse.ok && phoneText === '从手机发到电脑的测试文字')
+
+    const keyResponse = await fetch(`http://127.0.0.1:${pairUrl.port}/api/send/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'API_KEY=abc123xyz789secret' }),
+    })
+    check('手机 Key 被拒绝', keyResponse.status === 403)
+  }
+  const stopped = await crossDevice.stop()
+  check('局域网服务关闭', !stopped.running)
 
   console.log('\n存储')
   const store = new SqliteStore()

@@ -20,6 +20,11 @@ const api: ClipboardApi = {
   saveSettings: (patch: Partial<Settings>) => ipcRenderer.invoke('settings:save', patch),
   security: () => ipcRenderer.invoke('app:security'),
 
+  startCrossDevice: () => ipcRenderer.invoke('cross-device:start'),
+  stopCrossDevice: () => ipcRenderer.invoke('cross-device:stop'),
+  crossDeviceStatus: () => ipcRenderer.invoke('cross-device:status'),
+  sendCrossDeviceItem: (id) => ipcRenderer.invoke('cross-device:send-item', id),
+
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),

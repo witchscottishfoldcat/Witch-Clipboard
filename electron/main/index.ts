@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, clipboard, dialog } from 'electron'
 import { createPanel, getPanel, hidePanel, showPanel, markQuitting } from './window'
 import { createMini, getMini, hideMini } from './mini'
 import { createTray, updateTrayTooltip } from './tray'
@@ -19,6 +19,9 @@ import { migrateLegacyData, useCanonicalUserData } from './paths'
 import { scheduleStartupCheck } from './updater'
 import { pasteToPreviousWindow, rememberForegroundWindow } from './paste'
 import { writeItemToClipboard } from './item-clipboard'
+import { CrossDeviceService } from './cross-device'
+import { classify, makePreview } from '@shared/classify'
+import { sha256 } from '../data/crypto'
 
 if (process.argv.includes('--self-test')) {
   // 自检模式：跑断言后退出，不注册热键
@@ -50,6 +53,7 @@ function bootstrap(): void {
   let store: ItemStore | null = null
   let watcher: WatcherHandle | null = null
   let stopRetention: (() => void) | null = null
+  let crossDevice: CrossDeviceService | null = null
 
   app.whenReady().then(startup).catch((err) => {
     // 启动链路里的异常不能静默：吞掉的话表现就是「托盘有图标但面板永远不出来」
@@ -76,8 +80,41 @@ function bootstrap(): void {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send('items:changed')
     }
 
-    watcher = startWatcher(store, broadcastChanged)
-    registerIpc({ store, watcher, memoryFallback })
+    const broadcastCrossDevice = (): void => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('cross-device:changed')
+      }
+    }
+
+    crossDevice = new CrossDeviceService({
+      onPhoneText: (text) => {
+        if (!store) return
+        clipboard.writeText(text)
+        watcher?.syncAfterOwnWrite()
+        store.add({
+          kind: 'text',
+          text,
+          preview: makePreview(text),
+          autoKind: classify(text),
+          hash: sha256(text),
+          blobName: null,
+          thumb: null,
+          width: null,
+          height: null,
+          bytes: Buffer.byteLength(text, 'utf8'),
+          sourceApp: '手机',
+        })
+        broadcastChanged()
+      },
+      onStatusChanged: broadcastCrossDevice,
+    })
+
+    watcher = startWatcher(store, (itemId) => {
+      broadcastChanged()
+      const item = store?.get(itemId)
+      if (item?.kind === 'text' && item.text) crossDevice?.publishText(item.text)
+    })
+    registerIpc({ store, watcher, memoryFallback, crossDevice })
     stopRetention = startRetention(store, broadcastChanged)
 
     let quickPasteBusy = false
@@ -149,6 +186,7 @@ function bootstrap(): void {
     unregisterAllShortcuts()
     watcher?.stop()
     stopRetention?.()
+    void crossDevice?.stop()
     store?.close()
   })
 }

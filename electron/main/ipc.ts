@@ -1,5 +1,11 @@
 import { ipcMain, shell, app, BrowserWindow } from 'electron'
-import type { ListQuery, PasteOutcome, SecurityInfo, Settings } from '@shared/types'
+import type {
+  CrossDeviceSendResult,
+  ListQuery,
+  PasteOutcome,
+  SecurityInfo,
+  Settings,
+} from '@shared/types'
 import type { ItemStore } from './store'
 import { MemoryStore } from './store'
 import { getSettings, saveSettings } from './settings'
@@ -19,12 +25,14 @@ import {
   skipVersion,
 } from './updater'
 import type { WatcherHandle } from './watcher'
+import type { CrossDeviceService } from './cross-device'
 
 export interface IpcDeps {
   store: ItemStore
   watcher: WatcherHandle | null
   /** 数据库不可用、降级到内存时为 true */
   memoryFallback: boolean
+  crossDevice: CrossDeviceService
 }
 
 function broadcast(channel: string): void {
@@ -150,6 +158,19 @@ export function registerIpc(deps: IpcDeps): void {
   )
 
   ipcMain.handle('app:openDataDir', () => shell.openPath(app.getPath('userData')))
+
+  ipcMain.handle('cross-device:start', () => deps.crossDevice.start())
+  ipcMain.handle('cross-device:stop', () => deps.crossDevice.stop())
+  ipcMain.handle('cross-device:status', () => deps.crossDevice.status())
+  ipcMain.handle(
+    'cross-device:send-item',
+    (_e, id: number): CrossDeviceSendResult => {
+      const item = store.get(id)
+      if (!item) return { ok: false, reason: 'not-found' }
+      if (item.kind !== 'text' || !item.text) return { ok: false, reason: 'unsupported' }
+      return deps.crossDevice.publishText(item.text)
+    },
+  )
 
   ipcMain.handle('update:check', () => checkForUpdate(false))
   ipcMain.handle('update:download', () => downloadUpdate())

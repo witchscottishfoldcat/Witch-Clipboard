@@ -12,6 +12,7 @@ import { Footer } from '@/components/Footer'
 import { SettingsSheet } from '@/components/SettingsSheet'
 import { Toast, type ToastMessage } from '@/components/Toast'
 import { UpdateBanner } from '@/components/UpdateBanner'
+import { CrossDeviceSheet } from '@/components/CrossDeviceSheet'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
@@ -31,6 +32,7 @@ export default function App() {
   const [pinnedOnly, setPinnedOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [crossDeviceOpen, setCrossDeviceOpen] = useState(false)
   const [hotkey, setHotkey] = useState('Alt+V')
   const [quickPasteModifiers, setQuickPasteModifiers] = useState('Ctrl+Alt')
   const [toast, setToast] = useState<ToastMessage | null>(null)
@@ -92,6 +94,7 @@ export default function App() {
         setTag(null)
         setPinnedOnly(false)
         setSettingsOpen(false)
+        setCrossDeviceOpen(false)
         inputRef.current?.focus()
         inputRef.current?.select()
       }),
@@ -135,12 +138,13 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        if (settingsOpen) setSettingsOpen(false)
+        if (crossDeviceOpen) setCrossDeviceOpen(false)
+        else if (settingsOpen) setSettingsOpen(false)
         else if (q) setQ('')
         else void api.hidePanel()
         return
       }
-      if (settingsOpen) return
+      if (settingsOpen || crossDeviceOpen) return
 
       switch (e.key) {
         case 'ArrowDown':
@@ -210,7 +214,18 @@ export default function App() {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [copy, items, move, paste, q, remove, selectedId, settingsOpen, togglePin])
+  }, [
+    copy,
+    crossDeviceOpen,
+    items,
+    move,
+    paste,
+    q,
+    remove,
+    selectedId,
+    settingsOpen,
+    togglePin,
+  ])
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-white/74 text-black dark:bg-[#0b0b12]/72 dark:text-white">
@@ -220,7 +235,14 @@ export default function App() {
         inputRef={inputRef}
         stats={stats}
         onClose={() => void api.hidePanel()}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setCrossDeviceOpen(false)
+          setSettingsOpen(true)
+        }}
+        onOpenCrossDevice={() => {
+          setSettingsOpen(false)
+          setCrossDeviceOpen(true)
+        }}
       />
 
       <AnimatePresence>
@@ -283,6 +305,16 @@ export default function App() {
               loadHotkeys()
             }}
             onCleared={() => setSettingsOpen(false)}
+            onToast={showToast}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {crossDeviceOpen && (
+          <CrossDeviceSheet
+            item={selected}
+            onClose={() => setCrossDeviceOpen(false)}
             onToast={showToast}
           />
         )}

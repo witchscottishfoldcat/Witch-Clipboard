@@ -1,6 +1,6 @@
 {
   "name": "witchcat-clipboard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "license": "UNLICENSED",
   "description": "WitchCat Clipboard — Windows 剪贴板管理器：托盘常驻，Alt+V 唤出，文字/图片/文件自动入库，本地加密存储，可搜索可标签，选中即粘贴。",
@@ -29,7 +29,8 @@
   "dependencies": {
     "better-sqlite3-multiple-ciphers": "^12.11.1",
     "electron-updater": "^6.8.9",
-    "koffi": "^3.1.2"
+    "koffi": "^3.1.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
@@ -37,6 +38,7 @@
     "@tanstack/react-virtual": "^3.14.8",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^4.7.0",

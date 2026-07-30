@@ -1,8 +1,8 @@
-// 界面里的 logo 用的是 resources 下的托盘简化版母版：
-// 头部那个只有 24~32px，完整版的胡须和鼻子在这个尺寸下只会糊成一团。
+// 界面顶部使用完整母版，保留渐变、投影和立体边框；
+// Windows 系统托盘仍单独使用 logo-tray.svg 的高辨识度简化版。
 // 直接内联 SVG 而不是 <img src>：省掉一次资源请求，也不用担心
 // file:// 下 CSP 的 img-src 'self' 怎么算。
-import markup from '@res/logo-tray.svg?raw'
+import markup from '@res/logo.svg?raw'
 
 interface Props {
   className?: string

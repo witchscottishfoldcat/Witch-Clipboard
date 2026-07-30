@@ -5,20 +5,23 @@
 <h1 align="center">Witch Clipboard</h1>
 
 <p align="center">
-  <b>Windows 剪贴板管理器</b><br />
+  <b>本地优先的桌面剪贴板管理器</b><br />
   托盘常驻，单击弹出预览，<code>Alt+V</code> 唤出完整面板<br />
-  文字、图片、文件自动入库，本地加密存储，可搜索可标签，选中回车就贴回刚才那个窗口
+  自动分类、来源搜索、关联配置、加密存储与同一 Wi‑Fi 跨设备同步
 </p>
 
 <p align="center">
-  <a href="https://github.com/witchscottishfoldcat/WitchCat-Clipboard/releases/latest">下载最新版</a>
+  <a href="https://github.com/witchscottishfoldcat/Witch-Clipboard/releases/latest">下载最新版</a>
   ·
   <a href="./CHANGELOG.md">更新日志</a>
+  ·
+  <a href="https://www.witchcat.cn">作者网站</a>
 </p>
 
 复制过的东西不该丢在一个只记得最后一次的剪贴板里。这个项目做的就是：把你复制过的一切留下来、
-让你三秒内找回它、并且这些内容只留在你自己的机器上——数据库用 SQLCipher 加密，主密钥由
-Windows DPAPI 绑定到你的用户账户，没有账号、没有云、没有联网。
+让你三秒内找回它。历史记录默认只留在本机：数据库使用 SQLCipher，加密图片使用 AES-256-GCM，
+主密钥交给操作系统的安全存储保护。跨设备功能需要你主动开启，只在当前局域网临时传输，
+不需要账号，也不经过云端。
 
 ## 它能做什么
 
@@ -26,19 +29,30 @@ Windows DPAPI 绑定到你的用户账户，没有账号、没有云、没有联
 | --- | --- |
 | **自动采集** | 文字、图片（截图）、文件都自动入库；同一内容重复复制只上浮不重复存 |
 | **两种面板** | 单击托盘出迷你预览（340×470），`Alt+V` 出完整面板（820×540） |
-| **自动分类** | 链接 / 代码 / 颜色（带色块）/ 路径 / 邮箱 / 数字 / 图片 / 文件，各有徽标 |
-| **中文搜索** | FTS5 trigram 分词，能搜中文子串；1~2 字的短词自动回退扫描 |
+| **自动分类** | 文字 / 图片 / 文件 / 链接 / Key / 模型 / 代码 / 颜色 / 路径 / 邮箱 / 数字，各有徽标 |
+| **来源搜索** | 搜索内容的同时可按来源程序检索，例如输入 `msedge` 只看浏览器复制记录 |
+| **关联配置** | 5 秒内连续复制的模型名、Key、接口地址等自动归为一组，最多展示 5 条，可一键收起 |
+| **自定义导航** | 设置里自由选择顶部显示哪些分类标签，默认保持精简 |
+| **中文搜索** | FTS5 trigram 分词，能搜中文子串；1～2 字的短词自动回退扫描 |
+| **跨设备** | 手机扫码即连；文字、链接和图片可在同一 Wi‑Fi 内双向流转，敏感内容默认拒绝发送 |
 | **文件与大文件** | 只记录路径不复制内容，复制 10 GB 视频库里也只多一行；粘出去是真文件 |
 | **贴回去** | `Enter` 自动切回原窗口并模拟 `Ctrl+V`；全局快粘键直接粘贴前九条 |
 | **整理** | 置顶（永不清理）、标签、按类型/标签筛选、全键盘操作 |
-| **本地加密** | SQLCipher 数据库 + AES-256-GCM 图片，密钥受 DPAPI 保护 |
+| **主题与调色盘** | 跟随系统 / 浅色 / 深色主题，七套强调色统一所有按钮 |
+| **本地加密** | SQLCipher 数据库 + AES-256-GCM 图片，密钥受操作系统安全存储保护 |
 | **自动清理** | 按条数 / 天数保留，孤儿图片文件一并回收 |
 | **隐私** | 带「不要记录」标记的剪贴板（密码管理器）和黑名单程序的复制不入库 |
 
 ## 安装 / 运行
 
-从 [Releases](https://github.com/witchscottishfoldcat/WitchCat-Clipboard/releases/latest) 下载
-`Witch-Clipboard-<版本>-setup.exe`（NSIS，可选安装位置，卸载不删数据）。
+从 [Releases](https://github.com/witchscottishfoldcat/Witch-Clipboard/releases/latest) 下载：
+
+- Windows x64：`Witch-Clipboard-<版本>-x64-setup.exe`
+- Windows ARM64：`Witch-Clipboard-<版本>-arm64-setup.exe`（实验性）
+- macOS Intel / Apple Silicon：对应架构的 `.dmg`（实验性）
+
+Windows 安装包使用 NSIS，可选安装位置，卸载不删除数据。macOS 实验版暂未进行
+Apple Developer ID 签名与公证，首次打开时可能需要在“隐私与安全性”中手动允许。
 自己构建的产物在 `release/` 下。
 
 从源码跑：
@@ -46,10 +60,13 @@ Windows DPAPI 绑定到你的用户账户，没有账号、没有云、没有联
 ```bash
 npm install          # 会自动为 Electron 重建原生模块
 npm run dev          # 开发模式（面板会自动亮出来）
-npm run selftest     # 在真实 Electron 里跑 69 项断言
+npm run selftest     # 在真实 Electron 里跑 95 项断言
 npm run typecheck    # 类型检查
 npm run build        # 构建 out/ 产物
-npm run dist         # 打 NSIS 安装包到 release/
+npm run dist         # Windows x64 NSIS 安装包
+npm run dist:win:arm64
+npm run dist:win:all # 同时构建 Windows x64 / ARM64
+npm run dist:mac     # 需在 macOS 上构建 Intel / Apple Silicon
 npm run icons        # 重新生成图标
 ```
 
@@ -57,7 +74,8 @@ npm run icons        # 重新生成图标
 > `$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; node node_modules/electron/install.js`
 > 打包时若下载工具链失败：`$env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'`
 
-**环境要求**：Windows 10/11 x64。开发需要 Node 22+。
+**环境要求**：开发需要 Node 22+。Windows x64 是主支持平台；Windows ARM64 与 macOS
+Intel / Apple Silicon 目前属于实验性构建。
 
 ## 键位
 
@@ -89,6 +107,26 @@ npm run icons        # 重新生成图标
 
 **点到别处就收起**：焦点离开面板（点桌面、点别的程序、Alt+Tab）时自动隐藏。
 开发时想让面板留着不动，用 `WCC_NO_AUTOHIDE=1 npm run dev`。
+
+## 跨设备剪贴板
+
+在完整面板右上角点击手机按钮即可开启：
+
+- 电脑临时启动局域网服务并生成随机二维码，手机浏览器扫码即可，无需安装 App
+- 连接后立即显示电脑当前剪贴板；在电脑列表中选中哪条，就向手机发送哪条
+- 支持文字、链接和电脑图片；手机文字也能写回电脑剪贴板与历史记录
+- 关闭连接后二维码立即失效；数据不经过第三方服务器
+- Key、Token、密码、文件默认拒绝发送，单条文字上限 100 KB、图片上限 20 MB
+
+这是一项局域网便利功能，不是端到端加密的互联网同步服务。只应在可信 Wi‑Fi 中开启。
+
+## 搜索、导航与关联配置
+
+- 搜索框同时匹配内容、标签和来源程序；例如输入 `msedge` 可只看浏览器复制记录
+- 顶部导航默认显示全部、文字、图片、文件、链接和 Key；模型、代码、颜色、路径、邮箱、数字
+  可在设置中按需开启
+- 5 秒内连续复制的条目视为同一组，详情区最多展示 5 条关联内容；链接图标可展开或收起
+- 关联不依赖内容类型，所以模型名、Key、URL 与普通备注也能组成一组
 
 ## 文件与大文件
 
@@ -127,7 +165,7 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
 | --- | --- |
 | `clipboard.db` | SQLCipher 加密数据库：条目、标签、缩略图、全文索引 |
 | `blobs/<前2位>/<sha256>.bin` | AES-256-GCM 加密的原图，内容寻址、自动去重 |
-| `master.key` | 主密钥，用 Windows DPAPI 封装（绑定当前用户账户） |
+| `master.key` | 主密钥，由 Electron `safeStorage` 交给操作系统安全存储保护 |
 | `settings.json` | 界面与行为设置，明文 |
 | `update.log` | 更新检查的日志，出问题时的唯一线索（上限 256 KB） |
 
@@ -214,26 +252,34 @@ scripts/     零依赖 PNG 图标生成器
 
 ## 验证
 
-没有引入测试框架，验证集中在 `npm run selftest`——它在**真实 Electron 运行时**里跑 69 项断言，
+没有引入测试框架，验证集中在 `npm run selftest`——它在**真实 Electron 运行时**里跑 95 项断言，
 覆盖加密往返与篡改检测、内容分类、去重、FTS/LIKE 搜索与转义、标签、图片解密一致性、保留策略与
-blob 回收、`CF_HDROP` 真实往返、托盘单击竞态、点到别处收起的全部分支。
+blob 回收、跨设备文字/图片同步、5 秒关联检索、`CF_HDROP` 真实往返、托盘单击竞态、
+点到别处收起的全部分支。
 
 端到端手工验证过的路径：文字/图片/文件自动入库、记事本自动粘贴（含中文）、外部进程能把粘出去的
 内容读成真文件、打包版正常运行、焦点离开后面板自动消失。
 
 ## 安全边界（诚实说明）
 
-- 加密防的是「别人拿到你的 db 文件后直接读内容」。主密钥绑定当前 Windows 用户账户，
-  同一账户下运行的任何程序都能解密——这挡不住已经在你账户里跑的恶意软件。
+- 加密防的是「别人拿到你的 db 文件后直接读内容」。主密钥由当前系统账户的安全存储保护，
+  同一账户下运行的恶意程序仍可能读取——这不是防恶意软件机制。
 - 敏感内容跳过基于两条：剪贴板的 `ExcludeClipboardContentFromMonitorProcessing` 等标记
   （主流密码管理器会写），以及来源进程名黑名单。**不是 100% 可靠**：不写标记又不在黑名单里的
   程序，复制的内容照样会入库。别把它当成防泄漏机制。
 - 卸载不会删数据目录，需要彻底清除请手动删 `%APPDATA%\WitchCat-Clipboard`。
 
-## 已知限制
+## 平台支持与已知限制
 
-- **只做了 Windows。** `electron/main/win32.ts` 在非 Windows 上整体降级：没有序列号监听、
-  没有自动粘贴、读不到文件列表。
+| 平台 | 状态 | 说明 |
+| --- | --- | --- |
+| Windows 10/11 x64 | **正式支持** | 完整的监听、来源识别、自动粘贴、文件剪贴板、托盘与更新能力 |
+| Windows 11 ARM64 | **实验性** | 提供原生 ARM64 安装包；原生依赖与常用流程需要更多真机验证 |
+| macOS Intel | **实验性** | 可打包运行；基础历史、搜索、标签、图片与局域网同步可用 |
+| macOS Apple Silicon | **实验性** | 提供原生 arm64 构建；能力边界与 Intel 版相同 |
+
+- `electron/main/win32.ts` 在非 Windows 上整体降级，因此 macOS 暂无来源程序识别、自动切回并粘贴、
+  `CF_HDROP` 文件列表和 Windows 敏感剪贴板标记识别；可以手动复制后再粘贴。
 - **Win11 可能把托盘图标收进「溢出」区**，那样就看不到也点不到图标。这时右键任务栏 →
   任务栏设置 → 系统托盘图标 → 其他系统托盘图标 → 把 Witch Clipboard 打开。图标在溢出区时
   `tray.getBounds()` 返回 0，程序会退回「在光标附近弹出」并在日志里警告。
@@ -244,3 +290,13 @@ blob 回收、`CF_HDROP` 真实往返、托盘单击竞态、点到别处收起�
 ## 版本历史
 
 见 [CHANGELOG.md](./CHANGELOG.md)。
+
+## 开发者与许可
+
+- 作者：Thewitchcat
+- 邮箱：witchscottishfoldcat@gmail.com
+- 网站：[www.witchcat.cn](https://www.witchcat.cn)
+- 仓库：[witchscottishfoldcat/Witch-Clipboard](https://github.com/witchscottishfoldcat/Witch-Clipboard)
+- 许可： [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+允许在署名、非商业、相同方式共享的条件下使用与修改。商业使用请先联系作者取得额外授权。

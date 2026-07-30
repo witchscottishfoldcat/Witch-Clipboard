@@ -2,14 +2,32 @@ node_modules/
 out/
 dist/
 release/
+release-*/
 *.log
+*.pid
 .DS_Store
 .vite/
 
 # 构建中间产物
 *.tsbuildinfo
 
+# 演示视频、录屏工程与导出成片
+/outputs/
+/video-production/
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.avi
+*.wav
+*.mp3
+*.aac
+*.m4a
+*.srt
+*.ass
+
 # IDE 与本机产物
 .idea/
+.vs/
 .vscode/
 probe-result.txt

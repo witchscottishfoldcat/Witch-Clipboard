@@ -25,8 +25,10 @@ const DEFAULTS: Settings = {
   visibleFilters: ['all', 'text', 'image', 'files', 'url', 'key'],
   autoLaunch: false,
   theme: 'system',
+  accent: 'violet',
   skippedVersion: null,
 }
+const ACCENTS: Settings['accent'][] = ['violet', 'blue', 'cyan', 'teal', 'green', 'amber', 'rose']
 
 let cache: Settings | null = null
 
@@ -47,6 +49,7 @@ export function getSettings(): Settings {
         Array.isArray(raw.visibleFilters) && raw.visibleFilters.length > 0
           ? ['all', ...raw.visibleFilters.filter((id) => id !== 'all')]
           : DEFAULTS.visibleFilters,
+      accent: raw.accent && ACCENTS.includes(raw.accent) ? raw.accent : DEFAULTS.accent,
     }
   } catch {
     cache = { ...DEFAULTS }

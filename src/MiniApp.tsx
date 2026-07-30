@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { MiniRow } from '@/components/MiniRow'
 import { Toast, type ToastMessage } from '@/components/Toast'
 import { DEFAULT_VISIBLE_FILTERS, visibleKindFilters } from '@/lib/kinds'
+import { applyAccent } from '@/lib/accent'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制，请手动 Ctrl+V',
@@ -54,6 +55,7 @@ export default function MiniApp() {
     void api.getSettings().then((settings) => {
       setQuickPasteModifiers(settings.quickPasteModifiers)
       setVisibleFilters(settings.visibleFilters)
+      applyAccent(settings.accent)
     })
   }, [])
 

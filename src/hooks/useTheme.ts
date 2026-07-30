@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Settings } from '@shared/types'
 import { api } from '@/lib/api'
+import { applyAccent } from '@/lib/accent'
 
 /** 把 settings.theme 落到 <html data-theme>，system 时跟随系统 */
 export function useTheme(): 'light' | 'dark' {
@@ -8,7 +9,10 @@ export function useTheme(): 'light' | 'dark' {
   const [resolved, setResolved] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
-    void api.getSettings().then((s) => setPref(s.theme))
+    void api.getSettings().then((s) => {
+      setPref(s.theme)
+      applyAccent(s.accent)
+    })
   }, [])
 
   useEffect(() => {

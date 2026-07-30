@@ -19,6 +19,8 @@ export type FilterId =
   | 'email'
   | 'number'
 
+export type AccentPalette = 'violet' | 'blue' | 'cyan' | 'teal' | 'green' | 'amber' | 'rose'
+
 export interface ClipItem {
   id: number
   kind: ItemKind
@@ -91,6 +93,8 @@ export interface Settings {
   /** 开机自启（静默启动到托盘） */
   autoLaunch: boolean
   theme: 'system' | 'light' | 'dark'
+  /** 主界面按钮、选中态和强调色使用的统一调色盘 */
+  accent: AccentPalette
   /** 用户选了「暂不更新」的版本号，启动时不再提示它 */
   skippedVersion: string | null
 }

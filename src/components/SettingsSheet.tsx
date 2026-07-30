@@ -15,11 +15,13 @@ import {
   ClipboardPaste,
   PanelTop,
   ListFilter,
+  Palette,
 } from 'lucide-react'
 import type { FilterId, SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
 import { UpdateSection } from './UpdateSection'
 import { KIND_FILTERS } from '@/lib/kinds'
+import { ACCENT_OPTIONS, applyAccent } from '@/lib/accent'
 
 interface Props {
   onClose: () => void
@@ -102,6 +104,7 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
           : p.theme
       document.documentElement.dataset['theme'] = resolved
     }
+    if (p.accent) applyAccent(p.accent)
     return next
   }
 
@@ -222,6 +225,50 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
                   {text}
                 </button>
               ))}
+            </div>
+          </section>
+
+          {/* 统一强调色 */}
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-black/45 dark:text-white/45">
+              <Palette className="size-3.5" />
+              按钮配色
+              <span className="ml-auto text-[9.5px] text-black/30 dark:text-white/30">
+                全局统一
+              </span>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5 rounded-xl bg-black/[0.035] p-2 dark:bg-white/[0.055]">
+              {ACCENT_OPTIONS.map((option) => {
+                const active = settings?.accent === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => void patch({ accent: option.id })}
+                    title={option.label}
+                    aria-label={option.label}
+                    className={`group flex h-11 flex-col items-center justify-center gap-1 rounded-lg transition ${
+                      active
+                        ? 'bg-white shadow-sm ring-2 ring-brand-500/55 dark:bg-white/12'
+                        : 'hover:bg-white/65 dark:hover:bg-white/8'
+                    }`}
+                  >
+                    <span
+                      className="size-4 rounded-full shadow-sm ring-1 ring-black/8 transition group-hover:scale-110"
+                      style={{ backgroundColor: option.color }}
+                    />
+                    <span
+                      className={`text-[8.5px] ${
+                        active
+                          ? 'font-medium text-brand-600 dark:text-brand-400'
+                          : 'text-black/38 dark:text-white/38'
+                      }`}
+                    >
+                      {option.label}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </section>
 

@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: Settings = {
   visibleFilters: ['all', 'text', 'image', 'files', 'url', 'key'],
   autoLaunch: false,
   theme: 'system',
+  accent: 'violet',
   skippedVersion: null,
 }
 

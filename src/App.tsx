@@ -21,6 +21,7 @@ import { Toast, type ToastMessage } from '@/components/Toast'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { CrossDeviceSheet } from '@/components/CrossDeviceSheet'
 import { DEFAULT_VISIBLE_FILTERS } from '@/lib/kinds'
+import { applyAccent } from '@/lib/accent'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
@@ -74,6 +75,7 @@ export default function App() {
       setHotkey(s.hotkey)
       setQuickPasteModifiers(s.quickPasteModifiers)
       setVisibleFilters(s.visibleFilters)
+      applyAccent(s.accent)
     })
   }, [])
 

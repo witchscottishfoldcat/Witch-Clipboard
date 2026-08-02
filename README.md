@@ -7,7 +7,7 @@
 <p align="center">
   <b>本地优先的桌面剪贴板管理器</b><br />
   托盘常驻，单击弹出预览，<code>Alt+V</code> 唤出完整面板<br />
-  自动分类、来源搜索、关联配置、加密存储与同一 Wi‑Fi 跨设备同步
+  自动分类、来源搜索、关联配置、本地加密与端到端加密同步
 </p>
 
 <p align="center">
@@ -20,8 +20,8 @@
 
 复制过的东西不该丢在一个只记得最后一次的剪贴板里。这个项目做的就是：把你复制过的一切留下来、
 让你三秒内找回它。历史记录默认只留在本机：数据库使用 SQLCipher，加密图片使用 AES-256-GCM，
-主密钥交给操作系统的安全存储保护。跨设备功能需要你主动开启，只在当前局域网临时传输，
-不需要账号，也不经过云端。
+主密钥交给操作系统的安全存储保护。局域网传输需要你主动开启，不经过云端；WebDAV 历史
+在客户端加密后才上传，服务器拿不到剪贴板明文。
 
 ## 它能做什么
 
@@ -34,7 +34,8 @@
 | **关联配置** | 5 秒内连续复制的模型名、Key、接口地址等自动归为一组，最多展示 5 条，可一键收起 |
 | **自定义导航** | 设置里自由选择顶部显示哪些分类标签，默认保持精简 |
 | **中文搜索** | FTS5 trigram 分词，能搜中文子串；1～2 字的短词自动回退扫描 |
-| **跨设备** | 手机扫码即连；文字、链接和图片可在同一 Wi‑Fi 内双向流转，敏感内容默认拒绝发送 |
+| **局域网传输** | 手机扫码、电脑确认设备后连接；文字、图片与文件双向流转，文件支持分片、进度、取消和断点续传 |
+| **加密云同步** | 通过任意兼容 WebDAV 的服务器同步历史；状态和图片均由客户端 AES-256-GCM 端到端加密 |
 | **文件与大文件** | 只记录路径不复制内容，复制 10 GB 视频库里也只多一行；粘出去是真文件 |
 | **贴回去** | `Enter` 自动切回原窗口并模拟 `Ctrl+V`；全局快粘键直接粘贴前九条 |
 | **整理** | 置顶（永不清理）、标签、按类型/标签筛选、全键盘操作 |
@@ -50,8 +51,7 @@
 - Windows x64：`Witch-Clipboard-<版本>-x64-setup.exe`
 - Windows ARM64：`Witch-Clipboard-<版本>-arm64-setup.exe`（实验性）
 
-Windows 安装包使用 NSIS，可选安装位置，卸载不删除数据。当前 Tauri 版本只正式面向
-Windows；macOS 需要补齐 Keychain、`NSPasteboard`、辅助功能权限和 LaunchAgent 后才会重新提供。
+Windows 安装包使用 NSIS，可选安装位置，卸载不删除数据。正式发行只面向 Windows，
 自己构建的产物在 `src-tauri/target/<target>/release/bundle/nsis/` 下。
 
 从源码跑：
@@ -60,7 +60,6 @@ Windows；macOS 需要补齐 Keychain、`NSPasteboard`、辅助功能权限和 L
 npm install
 npm run dev          # 开发模式（面板会自动亮出来）
 npm run selftest     # Rust/Tauri 核心测试
-npm run selftest:electron # 旧 Electron 回滚链路的 100 项断言
 npm run selftest:system-clipboard # 显式修改系统剪贴板的真实 E2E
 npm run typecheck    # 类型检查
 npm run build        # 构建 Tauri 应用
@@ -109,12 +108,28 @@ Windows x64 是主支持平台；Windows ARM64 目前属于实验性构建。
 在完整面板右上角点击手机按钮即可开启：
 
 - 电脑临时启动局域网服务并生成随机二维码，手机浏览器扫码即可，无需安装 App
+- 手机发起连接后，电脑必须明确确认设备；确认前不能读取内容或上传文件
 - 连接后立即显示电脑当前剪贴板；在电脑列表中选中哪条，就向手机发送哪条
-- 支持文字、链接和电脑图片；手机文字也能写回电脑剪贴板与历史记录
+- 支持文字、图片和文件双向传输；手机传来的内容会写回电脑剪贴板与历史记录
+- 文件按 256 KB 分片，显示进度，可取消；上传以稳定传输 ID 和 `.part` 文件恢复，下载支持 HTTP Range 续传
 - 关闭连接后二维码立即失效；数据不经过第三方服务器
-- Key、Token、密码、文件默认拒绝发送，单条文字上限 100 KB、图片上限 20 MB
+- Key、Token、密码默认拒绝发送；文字上限 100 KB、图片上限 20 MB、单文件上限 2 GB
 
 这是一项局域网便利功能，不是端到端加密的互联网同步服务。只应在可信 Wi‑Fi 中开启。
+
+## 端到端加密 WebDAV 历史同步
+
+在设置里填写 WebDAV 地址、用户名和应用密码即可启用。首次保存会生成独立的 256 位同步密钥；
+把这把密钥复制到自己的其他设备，随后可手动同步，启用期间也会每 5 分钟后台同步。
+
+- 历史状态、标签、删除记录和图片都先在本机用 AES-256-GCM 加密，再通过 HTTPS 上传
+- 每个图片 Blob 单独加密并校验 SHA-256，远端文件名由同步密钥派生，不暴露内容哈希；并发写入用 ETag 条件请求检测冲突并自动重试
+- WebDAV 凭据和同步密钥在本机由主密钥再次加密，公开配置接口只返回“是否已设置”和密钥指纹
+- 删除通过 tombstone 在设备间传播；较新的重新复制可以显式恢复内容
+- 服务端仍能看到固定目录名、密文大小、文件数量和访问时间，但看不到内容、标签和来源程序
+
+同步密钥无法从服务器恢复。丢失密钥就无法解密云端历史；复制密钥时也要注意其他剪贴板工具
+可能记录它。除本机测试外，程序拒绝明文 HTTP WebDAV。
 
 ## 搜索、导航与关联配置
 
@@ -157,7 +172,8 @@ Tauri updater 会验证发行产物的独立签名；Windows Authenticode 是否
 | --- | --- |
 | `clipboard.db` | SQLCipher 加密数据库：条目、标签、缩略图、全文索引 |
 | `blobs/<前2位>/<sha256>.bin` | AES-256-GCM 加密的原图，内容寻址、自动去重 |
-| `master.key` | 主密钥，与旧 Electron 数据格式兼容，由 Windows DPAPI 保护 |
+| `master.key` | 主密钥，由 Windows DPAPI 保护 |
+| `webdav-sync.secret` | 本机加密保存的 WebDAV 凭据、开关和端到端同步密钥 |
 | `settings.json` | 界面与行为设置，明文 |
 
 从旧版本（叫 ZTB 时）升级会自动把 `%APPDATA%\ztb` 里的数据搬过来，只搬不删。
@@ -188,8 +204,7 @@ Tauri updater 会验证发行产物的独立签名；Windows Authenticode 是否
 | `resources/icon.png` / `icon-256.png` | 应用图标、安装包图标、README |
 | `resources/tray.png` / `tray@2x.png` | 同一母版生成的托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏版本） |
 
-替换母版后跑 `npm run icons` 重新生成。该维护脚本复用回滚工具链里的 Electron/Chromium
-在 canvas 中完成缩放；正式 Tauri 应用不会携带 Electron 运行时。
+替换母版后跑 `npm run icons` 重新生成；正式应用不会携带浏览器运行时。
 
 ## 技术栈
 
@@ -199,7 +214,6 @@ sqleet/SQLite · AES-256-GCM · windows-sys · NSIS
 ```
 src-tauri/   Rust 后端：窗口、托盘、热键、剪贴板、加密存储、局域网服务、更新命令
 src/         React UI（App = 完整面板，MiniApp = 迷你面板）
-electron/    旧 Electron 回滚实现与兼容性自检，不进入 Tauri 安装包
 scripts/     性能基准、系统剪贴板 E2E 与图标维护脚本
 ```
 
@@ -213,8 +227,7 @@ scripts/     性能基准、系统剪贴板 E2E 与图标维护脚本
   数据库里只放缩略图，原图按需解密。
 - **加密**：主密钥 32 字节随机，沿用兼容 `safeStorage` 的 Windows DPAPI 封装后落盘；
   数据库走 SQLCipher，图片走 AES-256-GCM，两者用不同的派生子密钥。
-- **数据目录固定成一个名字**：Tauri 与旧 Electron 都使用 `%APPDATA%\WitchCat-Clipboard`，
-  避免迁移后读取到两套数据库。
+- **数据目录固定成一个名字**：始终使用 `%APPDATA%\WitchCat-Clipboard`，避免升级后读取到两套数据库。
 - **`safeStorage` 在 Windows 上并不只绑用户账户**：它的加密密钥存在 profile 的 `Local State`
   文件里（再由 DPAPI 保护）。所以「换数据目录」等于「换了一把随机密钥」，搬过去的 `master.key`
   会解不开——迁移时必须把 `Local State` 一起带过来。这一条是改名时踩出来的，不踩一次很难想到。
@@ -233,12 +246,11 @@ scripts/     性能基准、系统剪贴板 E2E 与图标维护脚本
 - **自动粘贴**通过 Win32 模拟按键。发 Ctrl+V 之前会先释放残留的修饰键，否则 `Alt+V` 唤出面板时按着的 Alt
   会让目标程序收到 Ctrl+Alt+V。
 - **数据库打不开时**（master.key 丢失、换 Windows 账户或数据损坏）不静默覆盖或创建空库；
-  应用明确报错并保留原数据，用户仍可安装旧 Electron 版本回退。
+  应用明确报错并保留原数据。
 
 ## 验证
 
-`npm run selftest` 运行 Rust/Tauri 核心测试；`npm run selftest:electron` 保留旧 Electron
-实现的 100 项回归断言；`npm run selftest:system-clipboard` 则显式覆盖 HTML、图片、`CF_HDROP`
+`npm run selftest` 运行 Rust/Tauri 核心测试；`npm run selftest:system-clipboard` 显式覆盖 HTML、图片、`CF_HDROP`
 和自动粘贴的真实系统链路。发布前还会运行类型检查与按架构打包。
 
 端到端手工验证过的路径：文字/图片/文件自动入库、记事本自动粘贴（含中文）、外部进程能把粘出去的
@@ -259,7 +271,6 @@ scripts/     性能基准、系统剪贴板 E2E 与图标维护脚本
 | --- | --- | --- |
 | Windows 10/11 x64 | **正式支持** | 完整的监听、来源识别、自动粘贴、文件剪贴板、托盘与更新能力 |
 | Windows 11 ARM64 | **实验性** | 提供原生 ARM64 安装包；原生依赖与常用流程需要更多真机验证 |
-| macOS Intel / Apple Silicon | **不提供** | 尚未实现与 Windows 等价的系统安全存储、剪贴板、自动粘贴和自启能力 |
 
 - **Win11 可能把托盘图标收进「溢出」区**，那样就看不到也点不到图标。这时右键任务栏 →
   任务栏设置 → 系统托盘图标 → 其他系统托盘图标 → 把 Witch Clipboard 打开。图标在溢出区时

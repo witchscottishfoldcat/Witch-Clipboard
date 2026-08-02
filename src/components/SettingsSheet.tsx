@@ -25,6 +25,7 @@ import {
 import type { FilterId, SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
 import { UpdateSection } from './UpdateSection'
+import { WebDavSection } from './WebDavSection'
 import { KIND_FILTERS } from '@/lib/kinds'
 import { ACCENT_OPTIONS, applyAccent } from '@/lib/accent'
 import { applyPanelBackgroundOpacity } from '@/lib/opacity'
@@ -497,6 +498,8 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
               {confirmClear ? '确认清空？（置顶条目会保留）' : '清空历史记录'}
             </button>
           </section>
+
+          <WebDavSection onToast={onToast} />
 
           <UpdateSection onToast={onToast} />
 

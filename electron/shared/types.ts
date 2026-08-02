@@ -165,11 +165,55 @@ export interface CrossDeviceStatus {
   lastSeenAt: number | null
   lastSentAt: number | null
   lastSentPreview: string | null
+  pendingDevice?: CrossDeviceDevice | null
+  approvedDevice?: CrossDeviceDevice | null
+  transfers?: CrossDeviceTransfer[]
+}
+
+export interface CrossDeviceDevice {
+  id: string
+  name: string
+}
+
+export interface CrossDeviceTransfer {
+  id: string
+  name: string
+  direction: 'upload' | 'download'
+  state: 'pending' | 'transferring' | 'completed' | 'failed' | 'cancelled'
+  bytesTransferred: number
+  totalBytes: number
+  error: string | null
 }
 
 export interface CrossDeviceSendResult {
   ok: boolean
-  reason?: 'not-running' | 'not-found' | 'unsupported' | 'sensitive' | 'too-large'
+  reason?: 'not-running' | 'not-approved' | 'not-found' | 'unsupported' | 'sensitive' | 'too-large'
+}
+
+export interface WebDavConfig {
+  enabled: boolean
+  url: string
+  username: string
+  hasPassword: boolean
+  hasSyncKey: boolean
+  keyFingerprint: string | null
+}
+
+export interface WebDavConfigPatch {
+  enabled: boolean
+  url: string
+  username: string
+  password?: string
+  syncKey?: string
+}
+
+export interface WebDavSyncStatus {
+  state: 'idle' | 'syncing' | 'error'
+  lastSyncAt: number | null
+  uploaded: number
+  downloaded: number
+  deleted: number
+  error: string | null
 }
 
 /** contextBridge 暴露给渲染进程的全部能力 */
@@ -204,6 +248,16 @@ export interface ClipboardApi {
   crossDeviceStatus(): Promise<CrossDeviceStatus>
   /** 手动把指定历史条目发送到已配对手机 */
   sendCrossDeviceItem(id: number): Promise<CrossDeviceSendResult>
+  approveCrossDevice(deviceId: string): Promise<CrossDeviceStatus>
+  rejectCrossDevice(deviceId: string): Promise<CrossDeviceStatus>
+  cancelCrossDeviceTransfer(transferId: string): Promise<CrossDeviceStatus>
+  retryCrossDeviceTransfer(transferId: string): Promise<CrossDeviceStatus>
+
+  webDavConfig(): Promise<WebDavConfig>
+  saveWebDavConfig(patch: WebDavConfigPatch): Promise<WebDavConfig>
+  copyWebDavSyncKey(): Promise<void>
+  webDavStatus(): Promise<WebDavSyncStatus>
+  syncWebDavNow(): Promise<WebDavSyncStatus>
 
   /** 手动检查更新 */
   checkUpdate(): Promise<UpdateStatus>

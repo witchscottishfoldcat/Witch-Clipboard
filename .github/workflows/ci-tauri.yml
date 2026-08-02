@@ -31,7 +31,7 @@ jobs:
         run: npm run build:tauri:web
 
   bundle-arm64:
-    runs-on: windows-latest
+    runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,8 +43,26 @@ jobs:
           targets: aarch64-pc-windows-msvc
       - name: Install dependencies
         run: npm ci --ignore-scripts
-      - name: Build unsigned ARM64 NSIS on a clean runner
+      - name: Run Rust tests natively on ARM64
+        run: npm run selftest
+      - name: Build unsigned ARM64 NSIS on a clean ARM64 runner
         run: npx tauri build --ci --no-sign --bundles nsis --target aarch64-pc-windows-msvc
+      - name: Install and launch ARM64 package
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'ARM64 NSIS installer not found' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'witch-clipboard-arm64-smoke'
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$installDir" -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
+          $application = Get-ChildItem -LiteralPath $installDir -Recurse -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch 'uninstall' } |
+            Select-Object -First 1
+          if (-not $application) { throw 'Installed application not found' }
+          $process = Start-Process -FilePath $application.FullName -ArgumentList '--hidden' -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "Installed ARM64 app exited with $($process.ExitCode)" }
+          Stop-Process -Id $process.Id
       - uses: actions/upload-artifact@v4
         with:
           name: witch-clipboard-arm64-unsigned-ci

@@ -45,8 +45,8 @@ Tauri updater 签名只负责证明更新包未被替换，不能消除 SmartScr
 `src-tauri/tauri.signing.conf.json`，并为 EXE/NSIS 使用 SHA-256 和可信时间戳。缺少证书时工作流
 必须失败，禁止发布一个被误称为“已签名”的安装包。
 
-普通 `main` 推送会在干净的 `windows-latest` runner 上额外构建一次未签名 ARM64 NSIS，用来验证
-交叉编译和打包链路；它只作为 CI artifact，不得公开发行。
+普通 `main` 推送会在全新的 `windows-11-arm` 原生 ARM64 runner 上运行 Rust 测试、构建未签名
+ARM64 NSIS，并静默安装后启动 8 秒做 smoke test；产物只作为 CI artifact，不得公开发行。
 
 x64/ARM64 矩阵故意设为 `max-parallel: 1`。`tauri-action` 对 `latest.json` 采用读取、合并、删除、
 重传流程；两个架构并行会存在丢失其中一个 `windows-<arch>` 条目的竞态。发布草稿转正前必须检查
@@ -57,12 +57,12 @@ x64/ARM64 矩阵故意设为 `max-parallel: 1`。`tauri-action` 对 `latest.json
 1. 备份 `%APPDATA%\WitchCat-Clipboard`，确认 Electron 已完全退出。
 2. 运行 Tauri NSIS；应用标识与数据目录保持不变，不建立第二份历史。
 3. 首次启动会读取原 `master.key`、`Local State`、sqleet 数据库和加密 Blob。
-4. v4 数据库会先在线备份到 `migration-backups`，验证成功后才事务升级为 v5。
+4. v4 数据库会先在线备份到 `migration-backups`，验证成功后才事务升级为 v6。
 5. 验证历史数量、图片、标签、搜索、粘贴和快捷键。
 6. 若启动报告密钥/数据库错误，停止操作并重新安装 Electron 回滚；Tauri 不会重建或覆盖原库。
 
 ## 回滚
 
-schema v5 只新增可空 `html` 列，Electron 1.5.0 的 `SELECT i.*` 读取路径可忽略该列。
+schema v5 新增可空 `html` 列，v6 新增独立的 `sync_tombstones` 表；原条目表字段保持兼容。
 回滚时退出 Tauri并安装保留的 Electron 安装包；不要删除用户数据。若需要恢复迁移前快照，先关闭两种客户端，
 再由维护者从 `migration-backups` 恢复，禁止在应用运行时替换数据库文件。

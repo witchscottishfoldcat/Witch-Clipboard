@@ -56,6 +56,35 @@ pub struct PasteOutcome {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SyncItem {
+    pub kind: String,
+    pub text: Option<String>,
+    pub html: Option<String>,
+    pub preview: String,
+    pub hash: String,
+    pub blob_name: Option<String>,
+    pub thumb: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub bytes: usize,
+    pub source_app: Option<String>,
+    pub auto_kind: String,
+    pub tags: Vec<String>,
+    pub pinned: bool,
+    pub use_count: u32,
+    pub created_at: i64,
+    pub last_used_at: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncTombstone {
+    pub hash: String,
+    pub deleted_at: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub hotkey: String,
     pub quick_paste_modifiers: String,

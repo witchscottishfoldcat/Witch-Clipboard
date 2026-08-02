@@ -10,6 +10,7 @@ use std::{
         mpsc, Arc, Mutex,
     },
     thread,
+    time::Duration,
 };
 
 use arboard::{Clipboard, ImageData};
@@ -32,6 +33,7 @@ mod model;
 mod platform;
 mod settings;
 mod storage;
+mod webdav_sync;
 
 use model::{ListQuery, ListResult, PasteOutcome, Stats};
 use settings::SettingsStore;
@@ -50,15 +52,18 @@ struct AppState {
     hidden_at: AtomicI64,
     window_hidden_at: Mutex<HashMap<String, i64>>,
     cross_device: cross_device::CrossDevice,
-    phone_text: Mutex<Option<mpsc::Receiver<String>>>,
+    webdav: webdav_sync::WebDavSync,
+    phone_events: Mutex<Option<mpsc::Receiver<cross_device::Incoming>>>,
 }
 
 impl AppState {
     fn open() -> Result<Self, String> {
         let data_dir = crypto::canonical_data_dir();
         let (phone_sender, phone_receiver) = mpsc::channel();
+        let store = SqliteStore::open(&data_dir).map_err(|error| error.to_string())?;
+        let webdav = webdav_sync::WebDavSync::new(&store);
         Ok(Self {
-            store: SqliteStore::open(&data_dir).map_err(|error| error.to_string())?,
+            store,
             settings: SettingsStore::load(&data_dir),
             clipboard_gate: Mutex::new(()),
             target_hwnd: AtomicIsize::new(0),
@@ -67,8 +72,9 @@ impl AppState {
             quick_shortcuts: Mutex::new(HashMap::new()),
             hidden_at: AtomicI64::new(0),
             window_hidden_at: Mutex::new(HashMap::new()),
-            cross_device: cross_device::CrossDevice::new(phone_sender),
-            phone_text: Mutex::new(Some(phone_receiver)),
+            cross_device: cross_device::CrossDevice::new(phone_sender, &data_dir),
+            webdav,
+            phone_events: Mutex::new(Some(phone_receiver)),
         })
     }
 }
@@ -730,11 +736,92 @@ fn cross_device_send(
                 .unwrap_or_default(),
             item.preview,
         ),
+        "files" => state.cross_device.publish_files(
+            item.text
+                .unwrap_or_default()
+                .lines()
+                .filter(|path| !path.is_empty())
+                .map(str::to_string)
+                .collect(),
+        ),
         _ => cross_device::SendResult {
             ok: false,
             reason: Some("unsupported"),
         },
     })
+}
+
+#[tauri::command]
+fn cross_device_approve(
+    state: State<'_, Arc<AppState>>,
+    device_id: String,
+) -> Result<cross_device::Status, String> {
+    state.cross_device.approve_device(&device_id)
+}
+
+#[tauri::command]
+fn cross_device_reject(state: State<'_, Arc<AppState>>, device_id: String) -> cross_device::Status {
+    state.cross_device.reject_device(&device_id)
+}
+
+#[tauri::command]
+fn cross_device_cancel_transfer(
+    state: State<'_, Arc<AppState>>,
+    transfer_id: String,
+) -> cross_device::Status {
+    state.cross_device.cancel_transfer(&transfer_id)
+}
+
+#[tauri::command]
+fn cross_device_retry_transfer(
+    state: State<'_, Arc<AppState>>,
+    transfer_id: String,
+) -> cross_device::Status {
+    state.cross_device.retry_transfer(&transfer_id)
+}
+
+#[tauri::command]
+fn webdav_config(state: State<'_, Arc<AppState>>) -> Result<webdav_sync::PublicConfig, String> {
+    state.webdav.config()
+}
+
+#[tauri::command]
+fn webdav_save_config(
+    state: State<'_, Arc<AppState>>,
+    patch: webdav_sync::ConfigPatch,
+) -> Result<webdav_sync::PublicConfig, String> {
+    state.webdav.save_config(patch)
+}
+
+#[tauri::command]
+fn webdav_copy_sync_key(state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let sync_key = state.webdav.reveal_sync_key()?;
+    let _clipboard_guard = state
+        .clipboard_gate
+        .lock()
+        .map_err(|error| error.to_string())?;
+    Clipboard::new()
+        .and_then(|mut clipboard| clipboard.set_text(sync_key))
+        .map_err(|error| error.to_string())?;
+    state
+        .own_clipboard_sequence
+        .store(platform::clipboard_sequence(), Ordering::Release);
+    Ok(())
+}
+
+#[tauri::command]
+fn webdav_status(state: State<'_, Arc<AppState>>) -> webdav_sync::SyncStatus {
+    state.webdav.status()
+}
+
+#[tauri::command]
+async fn webdav_sync_now(
+    state: State<'_, Arc<AppState>>,
+) -> Result<webdav_sync::SyncStatus, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.webdav.sync_now(&state.store))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -910,6 +997,15 @@ fn main() {
             cross_device_stop,
             cross_device_status,
             cross_device_send,
+            cross_device_approve,
+            cross_device_reject,
+            cross_device_cancel_transfer,
+            cross_device_retry_transfer,
+            webdav_config,
+            webdav_save_config,
+            webdav_copy_sync_key,
+            webdav_status,
+            webdav_sync_now,
         ])
         .setup(move |app| {
             let state = app.state::<Arc<AppState>>().inner().clone();
@@ -948,22 +1044,69 @@ fn main() {
             }
 
             let state = app.state::<Arc<AppState>>().inner().clone();
-            if let Some(phone) = state
-                .phone_text
+            let phone = state
+                .phone_events
                 .lock()
                 .expect("phone receiver lock poisoned")
-                .take()
-            {
+                .take();
+            if let Some(phone) = phone {
                 let app_handle = app.handle().clone();
+                let transfer_state = state.clone();
                 thread::spawn(move || {
-                    while let Ok(text) = phone.recv() {
-                        if let Ok(mut clipboard) = Clipboard::new() {
-                            let _ = clipboard.set_text(text);
-                            let _ = app_handle.emit("witchcat://changed", ());
+                    while let Ok(event) = phone.recv() {
+                        match event {
+                            cross_device::Incoming::Text(text) => {
+                                if let Ok(_guard) = transfer_state.clipboard_gate.lock() {
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        if clipboard.set_text(&text).is_ok() {
+                                            transfer_state.own_clipboard_sequence.store(
+                                                platform::clipboard_sequence(),
+                                                Ordering::Release,
+                                            );
+                                        }
+                                    }
+                                }
+                                let _ = insert_text(
+                                    &transfer_state,
+                                    text,
+                                    None,
+                                    Some("局域网设备".to_string()),
+                                );
+                            }
+                            cross_device::Incoming::Files(paths) => {
+                                if let Ok(_guard) = transfer_state.clipboard_gate.lock() {
+                                    if platform::write_clipboard_files(&paths) {
+                                        transfer_state.own_clipboard_sequence.store(
+                                            platform::clipboard_sequence(),
+                                            Ordering::Release,
+                                        );
+                                    }
+                                }
+                                let _ = insert_files(
+                                    &transfer_state,
+                                    paths,
+                                    Some("局域网设备".to_string()),
+                                );
+                            }
                         }
+                        let _ = app_handle.emit("witchcat://changed", ());
                     }
                 });
             }
+            let sync_state = state.clone();
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs(30));
+                loop {
+                    if sync_state
+                        .webdav
+                        .config()
+                        .is_ok_and(|config| config.enabled)
+                    {
+                        let _ = sync_state.webdav.sync_now(&sync_state.store);
+                    }
+                    thread::sleep(Duration::from_secs(5 * 60));
+                }
+            });
             start_text_monitor(app.handle().clone(), state);
             Ok(())
         })
@@ -976,8 +1119,10 @@ mod tests {
     use super::*;
 
     fn test_state(path: &Path) -> AppState {
+        let store = SqliteStore::open(path).unwrap();
+        let webdav = webdav_sync::WebDavSync::new(&store);
         AppState {
-            store: SqliteStore::open(path).unwrap(),
+            store,
             settings: SettingsStore::load(path),
             clipboard_gate: Mutex::new(()),
             target_hwnd: AtomicIsize::new(0),
@@ -988,9 +1133,10 @@ mod tests {
             window_hidden_at: Mutex::new(HashMap::new()),
             cross_device: {
                 let (tx, _) = mpsc::channel();
-                cross_device::CrossDevice::new(tx)
+                cross_device::CrossDevice::new(tx, path)
             },
-            phone_text: Mutex::new(None),
+            webdav,
+            phone_events: Mutex::new(None),
         }
     }
 

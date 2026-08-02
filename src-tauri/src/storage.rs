@@ -12,10 +12,10 @@ use thiserror::Error;
 
 use crate::{
     crypto::{CryptoError, KeyMaterial},
-    model::{ClipItem, ListQuery, ListResult, Stats},
+    model::{ClipItem, ListQuery, ListResult, Stats, SyncItem, SyncTombstone},
 };
 
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 const TAG_SEPARATOR: char = '\u{1f}';
 const SELECT_BASE: &str = r#"
 SELECT i.*, (
@@ -42,6 +42,10 @@ CREATE TABLE item_tags (
   PRIMARY KEY (item_id, tag_id)
 );
 CREATE INDEX idx_item_tags_tag ON item_tags(tag_id);
+CREATE TABLE sync_tombstones (
+  hash TEXT PRIMARY KEY,
+  deleted_at INTEGER NOT NULL
+);
 CREATE VIRTUAL TABLE items_fts USING fts5(
   text, preview, content='items', content_rowid='id', tokenize='trigram'
 );
@@ -141,6 +145,9 @@ impl SqliteStore {
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
+    pub(crate) fn keys(&self) -> KeyMaterial {
+        self.keys.clone()
+    }
 
     pub fn add(&self, item: NewItem) -> Result<(i64, bool), StorageError> {
         let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
@@ -154,6 +161,7 @@ impl SqliteStore {
                 "UPDATE items SET last_used_at=?1, use_count=use_count+1 WHERE id=?2",
                 params![now_ms(), id],
             )?;
+            connection.execute("DELETE FROM sync_tombstones WHERE hash=?1", [&item.hash])?;
             return Ok((id, false));
         }
         connection.execute(
@@ -163,6 +171,7 @@ impl SqliteStore {
             params![item.kind,item.text,item.html,item.preview,item.auto_kind,item.hash,item.blob_name,
                 item.thumb,item.width,item.height,item.bytes as i64,item.source_app,now_ms()],
         )?;
+        connection.execute("DELETE FROM sync_tombstones WHERE hash=?1", [&item.hash])?;
         Ok((connection.last_insert_rowid(), true))
     }
 
@@ -311,16 +320,23 @@ impl SqliteStore {
     }
 
     pub fn remove(&self, id: i64) -> Result<(), StorageError> {
-        let blob = self
-            .connection
-            .lock()
-            .map_err(|_| StorageError::Poisoned)?
-            .query_row("SELECT blob_name FROM items WHERE id=?1", [id], |row| {
-                row.get::<_, Option<String>>(0)
-            })
-            .optional()?
-            .flatten();
-        self.execute("DELETE FROM items WHERE id=?1", id)?;
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let item = connection
+            .query_row(
+                "SELECT hash,blob_name FROM items WHERE id=?1",
+                [id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .optional()?;
+        let Some((hash, blob)) = item else {
+            return Ok(());
+        };
+        connection.execute(
+            "INSERT INTO sync_tombstones(hash,deleted_at) VALUES (?1,?2) ON CONFLICT(hash) DO UPDATE SET deleted_at=max(deleted_at,excluded.deleted_at)",
+            params![hash, now_ms()],
+        )?;
+        connection.execute("DELETE FROM items WHERE id=?1", [id])?;
+        drop(connection);
         if let Some(hash) = blob {
             self.gc_blob(&hash)?;
         }
@@ -329,6 +345,11 @@ impl SqliteStore {
 
     pub fn clear_all(&self) -> Result<(), StorageError> {
         let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let deleted_at = now_ms();
+        connection.execute(
+            "INSERT INTO sync_tombstones(hash,deleted_at) SELECT hash,?1 FROM items WHERE pinned=0 ON CONFLICT(hash) DO UPDATE SET deleted_at=max(deleted_at,excluded.deleted_at)",
+            [deleted_at],
+        )?;
         connection.execute_batch("DELETE FROM items WHERE pinned=0; DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM item_tags);")?;
         drop(connection);
         self.gc_orphan_blobs()?;
@@ -348,12 +369,21 @@ impl SqliteStore {
         let transaction = connection.transaction()?;
         let mut removed = 0;
         if max_days > 0 {
+            let cutoff = now_ms() - max_days as i64 * 86_400_000;
+            transaction.execute(
+                "INSERT INTO sync_tombstones(hash,deleted_at) SELECT hash,?1 FROM items WHERE pinned=0 AND last_used_at<?2 ON CONFLICT(hash) DO UPDATE SET deleted_at=max(deleted_at,excluded.deleted_at)",
+                params![now_ms(), cutoff],
+            )?;
             removed += transaction.execute(
                 "DELETE FROM items WHERE pinned=0 AND last_used_at<?1",
-                [now_ms() - max_days as i64 * 86_400_000],
+                [cutoff],
             )?;
         }
         if max_items > 0 {
+            transaction.execute(
+                "INSERT INTO sync_tombstones(hash,deleted_at) SELECT hash,?1 FROM items WHERE pinned=0 AND id NOT IN (SELECT id FROM items WHERE pinned=0 ORDER BY last_used_at DESC LIMIT ?2) ON CONFLICT(hash) DO UPDATE SET deleted_at=max(deleted_at,excluded.deleted_at)",
+                params![now_ms(), max_items as i64],
+            )?;
             removed+=transaction.execute("DELETE FROM items WHERE pinned=0 AND id NOT IN (SELECT id FROM items WHERE pinned=0 ORDER BY last_used_at DESC LIMIT ?1)",[max_items as i64])?;
         }
         transaction.execute(
@@ -391,6 +421,170 @@ impl SqliteStore {
             return Ok(None);
         }
         Ok(Some(self.keys.open_blob(&fs::read(path)?)?))
+    }
+
+    pub fn image_png_by_hash(&self, hash: &str) -> Result<Option<Vec<u8>>, StorageError> {
+        let path = self.blob_path(hash);
+        if !path.exists() {
+            return Ok(None);
+        }
+        Ok(Some(self.keys.open_blob(&fs::read(path)?)?))
+    }
+
+    pub fn all_for_sync(&self) -> Result<Vec<SyncItem>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let mut statement =
+            connection.prepare(&format!("{SELECT_BASE} ORDER BY i.last_used_at DESC"))?;
+        let items = statement
+            .query_map([], row_to_item)?
+            .map(|result| result.map(sync_item_from_clip))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)?;
+        Ok(items)
+    }
+
+    pub fn sync_tombstones(&self) -> Result<Vec<SyncTombstone>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let mut statement = connection
+            .prepare("SELECT hash,deleted_at FROM sync_tombstones ORDER BY deleted_at")?;
+        let tombstones = statement
+            .query_map([], |row| {
+                Ok(SyncTombstone {
+                    hash: row.get(0)?,
+                    deleted_at: row.get(1)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)?;
+        Ok(tombstones)
+    }
+
+    pub fn apply_sync_item(
+        &self,
+        item: &SyncItem,
+        image_png: Option<&[u8]>,
+    ) -> Result<bool, StorageError> {
+        if let (Some(blob_hash), Some(png)) = (item.blob_name.as_deref(), image_png) {
+            self.put_blob(blob_hash, png)?;
+        }
+        let thumb = item.thumb.as_deref().and_then(|value| {
+            value
+                .split_once(',')
+                .and_then(|(_, payload)| BASE64.decode(payload).ok())
+        });
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let transaction = connection.transaction()?;
+        let tombstone = transaction
+            .query_row(
+                "SELECT deleted_at FROM sync_tombstones WHERE hash=?1",
+                [&item.hash],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        if tombstone.is_some_and(|deleted_at| deleted_at >= item.last_used_at) {
+            transaction.commit()?;
+            return Ok(false);
+        }
+        let existing = transaction
+            .query_row(
+                "SELECT id,last_used_at FROM items WHERE hash=?1",
+                [&item.hash],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()?;
+        if existing.is_some_and(|(_, last_used_at)| last_used_at > item.last_used_at) {
+            transaction.execute(
+                "DELETE FROM sync_tombstones WHERE hash=?1 AND deleted_at<?2",
+                params![item.hash, existing.expect("checked above").1],
+            )?;
+            transaction.commit()?;
+            return Ok(false);
+        }
+        transaction.execute(
+            r#"INSERT INTO items
+            (kind,text,html,preview,auto_kind,hash,blob_name,thumb,width,height,bytes,source_app,pinned,use_count,created_at,last_used_at)
+            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+            ON CONFLICT(hash) DO UPDATE SET
+              kind=excluded.kind,text=excluded.text,html=excluded.html,preview=excluded.preview,
+              auto_kind=excluded.auto_kind,blob_name=excluded.blob_name,thumb=excluded.thumb,
+              width=excluded.width,height=excluded.height,bytes=excluded.bytes,source_app=excluded.source_app,
+              pinned=excluded.pinned,use_count=excluded.use_count,
+              created_at=min(items.created_at,excluded.created_at),last_used_at=excluded.last_used_at"#,
+            params![
+                item.kind,item.text,item.html,item.preview,item.auto_kind,item.hash,item.blob_name,thumb,
+                item.width,item.height,item.bytes as i64,item.source_app,item.pinned as i64,
+                item.use_count as i64,item.created_at,item.last_used_at
+            ],
+        )?;
+        let id: i64 =
+            transaction.query_row("SELECT id FROM items WHERE hash=?1", [&item.hash], |row| {
+                row.get(0)
+            })?;
+        transaction.execute("DELETE FROM item_tags WHERE item_id=?1", [id])?;
+        for name in item
+            .tags
+            .iter()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .take(12)
+        {
+            transaction.execute("INSERT OR IGNORE INTO tags(name) VALUES (?1)", [name])?;
+            let tag_id: i64 =
+                transaction.query_row("SELECT id FROM tags WHERE name=?1", [name], |row| {
+                    row.get(0)
+                })?;
+            transaction.execute(
+                "INSERT OR IGNORE INTO item_tags(item_id,tag_id) VALUES (?1,?2)",
+                params![id, tag_id],
+            )?;
+        }
+        transaction.execute("DELETE FROM sync_tombstones WHERE hash=?1", [&item.hash])?;
+        transaction.commit()?;
+        Ok(true)
+    }
+
+    pub fn apply_sync_tombstone(&self, tombstone: &SyncTombstone) -> Result<bool, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let item = connection
+            .query_row(
+                "SELECT id,last_used_at,blob_name FROM items WHERE hash=?1",
+                [&tombstone.hash],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()?;
+        if item
+            .as_ref()
+            .is_some_and(|(_, last_used_at, _)| *last_used_at > tombstone.deleted_at)
+        {
+            return Ok(false);
+        }
+        connection.execute(
+            "INSERT INTO sync_tombstones(hash,deleted_at) VALUES (?1,?2) ON CONFLICT(hash) DO UPDATE SET deleted_at=max(deleted_at,excluded.deleted_at)",
+            params![tombstone.hash,tombstone.deleted_at],
+        )?;
+        let removed = if let Some((id, last_used_at, _)) = &item {
+            if *last_used_at <= tombstone.deleted_at {
+                connection.execute("DELETE FROM items WHERE id=?1", [id])? > 0
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        let blob = item.and_then(|(_, _, blob)| blob);
+        drop(connection);
+        if removed {
+            if let Some(hash) = blob {
+                self.gc_blob(&hash)?;
+            }
+        }
+        Ok(removed)
     }
     fn blob_path(&self, hash: &str) -> PathBuf {
         self.data_dir
@@ -532,6 +726,11 @@ fn migrate(connection: &Connection) -> Result<(), rusqlite::Error> {
             if version < 5 {
                 connection.execute_batch("ALTER TABLE items ADD COLUMN html TEXT;")?;
             }
+            if version < 6 {
+                connection.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS sync_tombstones (hash TEXT PRIMARY KEY, deleted_at INTEGER NOT NULL);",
+                )?;
+            }
             connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             connection.execute_batch("COMMIT;")
         })();
@@ -541,6 +740,29 @@ fn migrate(connection: &Connection) -> Result<(), rusqlite::Error> {
         result?;
     }
     Ok(())
+}
+
+fn sync_item_from_clip(item: ClipItem) -> SyncItem {
+    let blob_name = (item.kind == "image").then(|| item.hash.clone());
+    SyncItem {
+        kind: item.kind,
+        text: item.text,
+        html: item.html,
+        preview: item.preview,
+        hash: item.hash,
+        blob_name,
+        thumb: item.thumb,
+        width: item.width,
+        height: item.height,
+        bytes: item.bytes,
+        source_app: item.source_app,
+        auto_kind: item.auto_kind,
+        tags: item.tags,
+        pinned: item.pinned,
+        use_count: item.use_count,
+        created_at: item.created_at,
+        last_used_at: item.last_used_at,
+    }
 }
 
 fn backfill_auto_kind(connection: &Connection, target: &str) -> Result<(), rusqlite::Error> {
@@ -679,7 +901,7 @@ mod tests {
                 .unwrap()
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
         let backup_path = fs::read_dir(directory.path().join("migration-backups"))
             .unwrap()
@@ -696,6 +918,29 @@ mod tests {
                 .unwrap(),
             4
         );
+    }
+
+    #[test]
+    fn sync_tombstones_block_old_items_but_allow_newer_recopy() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(directory.path()).unwrap();
+        let (id, _) = store.add(text_item("sync-hash", "hello")).unwrap();
+        let old_item = store.all_for_sync().unwrap().pop().unwrap();
+
+        store.remove(id).unwrap();
+        let tombstone = store.sync_tombstones().unwrap().pop().unwrap();
+        assert!(!store.apply_sync_item(&old_item, None).unwrap());
+        assert_eq!(store.list(&ListQuery::default()).unwrap().total, 0);
+
+        let mut newer_item = old_item;
+        newer_item.last_used_at = tombstone.deleted_at + 1;
+        assert!(store.apply_sync_item(&newer_item, None).unwrap());
+        assert_eq!(store.list(&ListQuery::default()).unwrap().total, 1);
+        assert!(store.sync_tombstones().unwrap().is_empty());
+
+        assert!(!store.apply_sync_tombstone(&tombstone).unwrap());
+        assert_eq!(store.list(&ListQuery::default()).unwrap().total, 1);
+        assert!(store.sync_tombstones().unwrap().is_empty());
     }
 
     #[test]

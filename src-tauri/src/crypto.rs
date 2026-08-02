@@ -4,7 +4,7 @@ use std::{
 };
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
+    aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -15,6 +15,8 @@ use thiserror::Error;
 
 const MAGIC_KEYFILE: &[u8; 4] = b"ZTBK";
 const MAGIC_BLOB: &[u8; 4] = b"ZTB1";
+const MAGIC_LOCAL_SECRET: &[u8; 4] = b"ZTS1";
+const MAGIC_SYNC: &[u8; 4] = b"WCS1";
 const SAFE_STORAGE_PREFIX: &[u8; 3] = b"v10";
 const DPAPI_PREFIX: &[u8; 5] = b"DPAPI";
 const NONCE_LEN: usize = 12;
@@ -155,6 +157,24 @@ impl KeyMaterial {
             .map_err(|_| CryptoError::Aes)
     }
 
+    pub fn seal_local_secret(&self, plain: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        seal_with_key(
+            MAGIC_LOCAL_SECRET,
+            &self.subkey(b"local-secret"),
+            plain,
+            b"local-secret",
+        )
+    }
+
+    pub fn open_local_secret(&self, sealed: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        open_with_key(
+            MAGIC_LOCAL_SECRET,
+            &self.subkey(b"local-secret"),
+            sealed,
+            b"local-secret",
+        )
+    }
+
     fn subkey(&self, purpose: &[u8]) -> [u8; 32] {
         Sha256::new()
             .chain_update(self.master)
@@ -162,6 +182,72 @@ impl KeyMaterial {
             .finalize()
             .into()
     }
+}
+
+pub fn generate_sync_key() -> String {
+    let mut key = [0u8; 32];
+    rand::rng().fill_bytes(&mut key);
+    BASE64.encode(key)
+}
+
+pub fn decode_sync_key(encoded: &str) -> Result<[u8; 32], CryptoError> {
+    let decoded = BASE64.decode(encoded.trim())?;
+    decoded
+        .try_into()
+        .map_err(|_| CryptoError::InvalidKey("sync key is not 32 bytes"))
+}
+
+pub fn seal_sync(encoded_key: &str, plain: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    let key = decode_sync_key(encoded_key)?;
+    seal_with_key(MAGIC_SYNC, &key, plain, b"witch-clipboard-webdav-v1")
+}
+
+pub fn open_sync(encoded_key: &str, sealed: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    let key = decode_sync_key(encoded_key)?;
+    open_with_key(MAGIC_SYNC, &key, sealed, b"witch-clipboard-webdav-v1")
+}
+
+fn seal_with_key(
+    magic: &[u8; 4],
+    key: &[u8; 32],
+    plain: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::Aes)?;
+    let mut nonce = [0u8; NONCE_LEN];
+    rand::rng().fill_bytes(&mut nonce);
+    let nonce_ref = Nonce::try_from(nonce.as_slice()).map_err(|_| CryptoError::Aes)?;
+    let encrypted = cipher
+        .encrypt(&nonce_ref, Payload { msg: plain, aad })
+        .map_err(|_| CryptoError::Aes)?;
+    let mut output = Vec::with_capacity(magic.len() + NONCE_LEN + encrypted.len());
+    output.extend_from_slice(magic);
+    output.extend_from_slice(&nonce);
+    output.extend_from_slice(&encrypted);
+    Ok(output)
+}
+
+fn open_with_key(
+    magic: &[u8; 4],
+    key: &[u8; 32],
+    sealed: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    if sealed.len() < magic.len() + NONCE_LEN + TAG_LEN || !sealed.starts_with(magic) {
+        return Err(CryptoError::InvalidKey("encrypted payload header mismatch"));
+    }
+    let nonce_ref = Nonce::try_from(&sealed[magic.len()..magic.len() + NONCE_LEN])
+        .map_err(|_| CryptoError::Aes)?;
+    Aes256Gcm::new_from_slice(key)
+        .map_err(|_| CryptoError::Aes)?
+        .decrypt(
+            &nonce_ref,
+            Payload {
+                msg: &sealed[magic.len() + NONCE_LEN..],
+                aad,
+            },
+        )
+        .map_err(|_| CryptoError::Aes)
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
@@ -342,6 +428,20 @@ mod tests {
             fixture().database_key_hex(),
             "dbba006d83a9729bfa69a81664e4961decd72c7a96cf925121c33578afa250d3"
         );
+    }
+
+    #[test]
+    fn local_secret_and_sync_payload_use_distinct_authenticated_formats() {
+        let keys = fixture();
+        let local = keys.seal_local_secret(b"password").unwrap();
+        assert!(local.starts_with(MAGIC_LOCAL_SECRET));
+        assert_eq!(keys.open_local_secret(&local).unwrap(), b"password");
+
+        let sync_key = generate_sync_key();
+        let remote = seal_sync(&sync_key, b"history").unwrap();
+        assert!(remote.starts_with(MAGIC_SYNC));
+        assert_eq!(open_sync(&sync_key, &remote).unwrap(), b"history");
+        assert!(fixture().open_local_secret(&remote).is_err());
     }
 
     #[test]

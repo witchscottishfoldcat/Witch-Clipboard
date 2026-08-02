@@ -3,11 +3,15 @@ import { motion } from 'motion/react'
 import QRCode from 'qrcode'
 import {
   CheckCircle2,
+  Ban,
   Copy,
+  Download,
   LoaderCircle,
   MousePointer2,
   ShieldCheck,
   Smartphone,
+  Upload,
+  RotateCcw,
   Wifi,
   WifiOff,
   X,
@@ -114,7 +118,7 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
   }
 
   const canSend =
-    item?.kind === 'image' || (item?.kind === 'text' && item.autoKind !== 'key')
+    item?.kind === 'image' || item?.kind === 'files' || (item?.kind === 'text' && item.autoKind !== 'key')
 
   return (
     <motion.div
@@ -230,6 +234,60 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
           </div>
         </div>
 
+        {status.pendingDevice && (
+          <div className="mx-5 mb-4 rounded-2xl border border-amber-400/35 bg-amber-400/8 p-3">
+            <div className="text-[11.5px] font-medium text-black/70 dark:text-white/75">
+              是否允许“{status.pendingDevice.name || '未知设备'}”连接？
+            </div>
+            <div className="mt-1 text-[9.5px] text-black/40 dark:text-white/40">
+              短码一致后再确认。确认前，该设备不能读取剪贴板或上传文件。
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                onClick={() => void api.approveCrossDevice(status.pendingDevice!.id).then(setStatus)}
+                className="h-8 flex-1 rounded-lg bg-emerald-500 text-[10.5px] text-white"
+              >
+                允许这台设备
+              </button>
+              <button
+                onClick={() => void api.rejectCrossDevice(status.pendingDevice!.id).then(setStatus)}
+                className="h-8 flex-1 rounded-lg bg-black/6 text-[10.5px] text-black/55 dark:bg-white/8 dark:text-white/55"
+              >
+                拒绝
+              </button>
+            </div>
+          </div>
+        )}
+
+        {Boolean(status.transfers?.length) && (
+          <div className="mx-5 mb-4 space-y-2 rounded-2xl border border-black/6 bg-black/[0.025] p-3 dark:border-white/8 dark:bg-white/[0.035]">
+            <div className="text-[10.5px] font-medium text-black/55 dark:text-white/60">文件传输</div>
+            {status.transfers!.slice(0, 4).map((transfer) => {
+              const percent = transfer.totalBytes > 0
+                ? Math.min(100, Math.round((transfer.bytesTransferred / transfer.totalBytes) * 100))
+                : 0
+              return (
+                <div key={transfer.id} className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-[9.5px] text-black/45 dark:text-white/45">
+                    {transfer.direction === 'upload' ? <Upload className="size-3" /> : <Download className="size-3" />}
+                    <span className="min-w-0 flex-1 truncate">{transfer.name}</span>
+                    <span className="tabular-nums">{percent}%</span>
+                    {transfer.state === 'failed' || transfer.state === 'cancelled' ? (
+                      <button onClick={() => void api.retryCrossDeviceTransfer(transfer.id).then(setStatus)} title="允许续传"><RotateCcw className="size-3" /></button>
+                    ) : transfer.state !== 'completed' ? (
+                      <button onClick={() => void api.cancelCrossDeviceTransfer(transfer.id).then(setStatus)} title="取消"><Ban className="size-3" /></button>
+                    ) : null}
+                  </div>
+                  <div className="h-1 overflow-hidden rounded-full bg-black/8 dark:bg-white/10">
+                    <div className={`h-full rounded-full ${transfer.state === 'failed' ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${percent}%` }} />
+                  </div>
+                  {transfer.error && <div className="text-[9px] text-red-500">{transfer.error}</div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         <div className="mx-5 mb-4 rounded-2xl border border-black/6 bg-black/[0.025] p-3 dark:border-white/8 dark:bg-white/[0.035]">
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-500" />
@@ -238,7 +296,7 @@ export function CrossDeviceSheet({ item, onClose, onToast }: Props) {
                 安全保护已开启
               </div>
               <div className="mt-0.5 text-[10.5px] leading-4 text-black/40 dark:text-white/40">
-                支持文字、链接和图片；Key、Token、密码及文件不会发送。关闭连接后二维码立即失效。
+                支持文字、图片和文件；文件分片传输并支持中断续传。Key、Token 和密码不会发送，关闭连接后二维码立即失效。
               </div>
             </div>
           </div>

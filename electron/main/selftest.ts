@@ -25,6 +25,8 @@ function check(name: string, ok: boolean, detail = ''): void {
 export async function runSelfTest(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'witchcat-selftest-'))
   app.setPath('userData', dir)
+  // 自检窗口不能受桌面上其他应用抢焦点影响；自动收起逻辑在后面用 force + 假 PID 单独覆盖。
+  process.env.WCC_NO_AUTOHIDE = '1'
   // 自检不走 bootstrap，得自己挡住「最后一个窗口销毁就退出应用」的默认行为，
   // 否则销毁测试窗口之后进程会在下一个 await 处直接结束，后面的断言全都不会跑
   app.on('window-all-closed', () => {})
@@ -351,7 +353,13 @@ export async function runSelfTest(): Promise<void> {
     const probe = [join(app.getAppPath(), 'resources', 'icon.png'), join(dir, 'clipboard.db')]
 
     check('写入文件列表', win32.writeClipboardFiles(probe))
-    const readBack = win32.readClipboardFiles()
+    // 正式剪贴板监听器也在运行时，OpenClipboard 可能短暂被占用。
+    // 重试只处理系统竞争，不放宽路径往返的精确断言。
+    let readBack: string[] | null = null
+    for (let attempt = 0; attempt < 10 && !readBack; attempt++) {
+      readBack = win32.readClipboardFiles()
+      if (!readBack) await new Promise((resolve) => setTimeout(resolve, 20))
+    }
     check('读回的路径与写入一致', JSON.stringify(readBack) === JSON.stringify(probe), String(readBack))
 
     clipboard.writeText(before)
@@ -393,6 +401,10 @@ export async function runSelfTest(): Promise<void> {
   process.env['WCC_FAKE_UPDATE'] = '99.0.0'
   const updater = await import('./updater')
   const { getSettings: readSettings, saveSettings: writeSettings } = await import('./settings')
+  check('背景透明度默认 90%', readSettings().opacity === 90)
+  writeSettings({ opacity: 0 })
+  check('背景透明度不会低于 20%', readSettings().opacity === 20)
+  writeSettings({ opacity: 90 })
   writeSettings({ skippedVersion: null })
 
   const first = await updater.checkForUpdate(false)
@@ -468,6 +480,34 @@ export async function runSelfTest(): Promise<void> {
   await new Promise((r) => setTimeout(r, 120))
   stopIdle()
   check('窗口已隐藏时看门狗自动停止', ticks === 0, `ticks=${ticks}`)
+
+  console.log('\n按需窗口生命周期')
+  const panelLifecycle = await import('./window')
+  const miniLifecycle = await import('./mini')
+  panelLifecycle.releasePanel()
+  miniLifecycle.releaseMini()
+  panelLifecycle.setPanelBeforeShow(miniLifecycle.releaseMini)
+  miniLifecycle.setMiniBeforeShow(panelLifecycle.releasePanel)
+
+  panelLifecycle.showPanel()
+  check(
+    '只打开完整面板时只有一个窗口',
+    panelLifecycle.getPanel() !== null && miniLifecycle.getMini() === null,
+  )
+  miniLifecycle.showMini()
+  check(
+    '切到迷你面板会释放完整面板',
+    panelLifecycle.getPanel() === null && miniLifecycle.getMini() !== null,
+  )
+  panelLifecycle.showPanel()
+  check(
+    '切回完整面板会释放迷你面板',
+    panelLifecycle.getPanel() !== null && miniLifecycle.getMini() === null,
+  )
+  panelLifecycle.releasePanel()
+  // 后面的退出测试需要刻意同时创建两个窗口，暂时关闭互斥回调。
+  panelLifecycle.setPanelBeforeShow(() => {})
+  miniLifecycle.setMiniBeforeShow(() => {})
 
   // 退出流程必须放最后：markQuitting() 是不可逆的全局状态
   console.log('\n退出流程')

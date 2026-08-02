@@ -1,4 +1,5 @@
 import type { ClipboardApi, Settings } from '@shared/types'
+import { createTauriApi, isTauriRuntime } from './tauri-api'
 
 declare global {
   interface Window {
@@ -6,7 +7,7 @@ declare global {
   }
 }
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   hotkey: 'Alt+V',
   quickPasteModifiers: 'Ctrl+Alt',
   maxItems: 2000,
@@ -19,11 +20,12 @@ const DEFAULT_SETTINGS: Settings = {
   autoLaunch: false,
   theme: 'system',
   accent: 'violet',
+  opacity: 90,
   skippedVersion: null,
 }
 
 /** 纯浏览器里打开时（没有 preload）用的空实现，避免整页崩掉 */
-const fallback: ClipboardApi = {
+export const fallbackApi: ClipboardApi = {
   list: async () => ({ items: [], total: 0 }),
   stats: async () => ({ total: 0, pinned: 0, images: 0, bytes: 0 }),
   tags: async () => [],
@@ -86,5 +88,7 @@ const fallback: ClipboardApi = {
   onPanelShown: () => () => {},
 }
 
-export const api: ClipboardApi = window.witchcat ?? fallback
-export const isDesktop = Boolean(window.witchcat)
+export const api: ClipboardApi = isTauriRuntime
+  ? createTauriApi()
+  : (window.witchcat ?? fallbackApi)
+export const isDesktop = isTauriRuntime || Boolean(window.witchcat)

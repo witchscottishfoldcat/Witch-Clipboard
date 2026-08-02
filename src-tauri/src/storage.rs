@@ -1,0 +1,738 @@
+use std::{
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
+
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, Connection, OpenFlags, Row};
+use serde::Serialize;
+use thiserror::Error;
+
+use crate::{
+    crypto::{CryptoError, KeyMaterial},
+    model::{ClipItem, ListQuery, ListResult, Stats},
+};
+
+const SCHEMA_VERSION: i64 = 5;
+const TAG_SEPARATOR: char = '\u{1f}';
+const SELECT_BASE: &str = r#"
+SELECT i.*, (
+  SELECT group_concat(t.name, char(31)) FROM item_tags it
+  JOIN tags t ON t.id = it.tag_id WHERE it.item_id = i.id
+) AS tags
+FROM items i
+"#;
+const SCHEMA: &str = r#"
+CREATE TABLE items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, text TEXT, html TEXT,
+  preview TEXT NOT NULL DEFAULT '', auto_kind TEXT NOT NULL DEFAULT 'plain',
+  hash TEXT NOT NULL UNIQUE, blob_name TEXT, thumb BLOB, width INTEGER, height INTEGER,
+  bytes INTEGER NOT NULL DEFAULT 0, source_app TEXT, pinned INTEGER NOT NULL DEFAULT 0,
+  use_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL
+);
+CREATE INDEX idx_items_order ON items(pinned DESC, last_used_at DESC);
+CREATE INDEX idx_items_kind ON items(kind);
+CREATE INDEX idx_items_auto_kind ON items(auto_kind);
+CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE);
+CREATE TABLE item_tags (
+  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (item_id, tag_id)
+);
+CREATE INDEX idx_item_tags_tag ON item_tags(tag_id);
+CREATE VIRTUAL TABLE items_fts USING fts5(
+  text, preview, content='items', content_rowid='id', tokenize='trigram'
+);
+CREATE TRIGGER items_ai AFTER INSERT ON items BEGIN
+  INSERT INTO items_fts(rowid, text, preview) VALUES (new.id, new.text, new.preview);
+END;
+CREATE TRIGGER items_ad AFTER DELETE ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, text, preview) VALUES ('delete', old.id, old.text, old.preview);
+END;
+CREATE TRIGGER items_au AFTER UPDATE OF text, preview ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, text, preview) VALUES ('delete', old.id, old.text, old.preview);
+  INSERT INTO items_fts(rowid, text, preview) VALUES (new.id, new.text, new.preview);
+END;
+"#;
+
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error(transparent)]
+    Crypto(#[from] CryptoError),
+    #[error(transparent)]
+    Sqlite(#[from] rusqlite::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("storage lock poisoned")]
+    Poisoned,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompatibilityProbe {
+    pub schema_version: i64,
+    pub item_count: i64,
+    pub sqlite_version: String,
+    pub cipher: String,
+    pub os_protected: bool,
+}
+
+#[derive(Clone)]
+pub struct NewItem {
+    pub kind: String,
+    pub text: Option<String>,
+    pub html: Option<String>,
+    pub preview: String,
+    pub auto_kind: String,
+    pub hash: String,
+    pub blob_name: Option<String>,
+    pub thumb: Option<Vec<u8>>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub bytes: usize,
+    pub source_app: Option<String>,
+}
+
+pub struct SqliteStore {
+    connection: Mutex<Connection>,
+    data_dir: PathBuf,
+    keys: KeyMaterial,
+}
+
+fn apply_key(connection: &Connection, keys: &KeyMaterial) -> Result<(), rusqlite::Error> {
+    connection.execute_batch(&format!("PRAGMA key=\"x'{}'\";", keys.database_key_hex()))?;
+    connection.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
+    Ok(())
+}
+
+impl SqliteStore {
+    pub fn open(data_dir: &Path) -> Result<Self, StorageError> {
+        fs::create_dir_all(data_dir)?;
+        let keys = KeyMaterial::load_or_create(data_dir)?;
+        let connection = Connection::open_with_flags(
+            data_dir.join("clipboard.db"),
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+                | OpenFlags::SQLITE_OPEN_CREATE
+                | OpenFlags::SQLITE_OPEN_FULL_MUTEX,
+        )?;
+        apply_key(&connection, &keys)?;
+        connection.busy_timeout(std::time::Duration::from_secs(3))?;
+        let existing_version: i64 =
+            connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        if existing_version > 0 && existing_version < SCHEMA_VERSION {
+            backup_before_migration(&connection, data_dir, &keys, existing_version)?;
+        }
+        connection.execute_batch(
+            "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;",
+        )?;
+        migrate(&connection)?;
+        Ok(Self {
+            connection: Mutex::new(connection),
+            data_dir: data_dir.to_path_buf(),
+            keys,
+        })
+    }
+
+    pub fn is_os_protected(&self) -> bool {
+        self.keys.is_os_protected()
+    }
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
+
+    pub fn add(&self, item: NewItem) -> Result<(i64, bool), StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        if let Some(id) = connection
+            .query_row("SELECT id FROM items WHERE hash=?1", [&item.hash], |row| {
+                row.get(0)
+            })
+            .optional()?
+        {
+            connection.execute(
+                "UPDATE items SET last_used_at=?1, use_count=use_count+1 WHERE id=?2",
+                params![now_ms(), id],
+            )?;
+            return Ok((id, false));
+        }
+        connection.execute(
+            r#"INSERT INTO items
+            (kind,text,html,preview,auto_kind,hash,blob_name,thumb,width,height,bytes,source_app,created_at,last_used_at)
+            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?13)"#,
+            params![item.kind,item.text,item.html,item.preview,item.auto_kind,item.hash,item.blob_name,
+                item.thumb,item.width,item.height,item.bytes as i64,item.source_app,now_ms()],
+        )?;
+        Ok((connection.last_insert_rowid(), true))
+    }
+
+    pub fn list(&self, query: &ListQuery) -> Result<ListResult, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let mut clauses = Vec::<String>::new();
+        let mut values = Vec::<SqlValue>::new();
+        if let Some(kind) = query.kind.as_ref().filter(|value| !value.is_empty()) {
+            clauses.push("i.kind=?".to_string());
+            values.push(kind.clone().into());
+        }
+        if let Some(kind) = query.auto_kind.as_ref().filter(|value| !value.is_empty()) {
+            clauses.push("i.auto_kind=?".to_string());
+            values.push(kind.clone().into());
+        }
+        if query.pinned_only.unwrap_or(false) {
+            clauses.push("i.pinned=1".to_string());
+        }
+        if let Some(tag) = query.tag.as_ref().filter(|value| !value.is_empty()) {
+            clauses.push("EXISTS (SELECT 1 FROM item_tags it JOIN tags t ON t.id=it.tag_id WHERE it.item_id=i.id AND t.name=?)".to_string());
+            values.push(tag.clone().into());
+        }
+        let needle = query.q.as_deref().unwrap_or_default().trim();
+        if !needle.is_empty() {
+            let escaped = needle
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            let like = format!("%{escaped}%");
+            if needle.chars().count() >= 3 {
+                clauses.push("(i.id IN (SELECT rowid FROM items_fts WHERE items_fts MATCH ?) OR i.source_app LIKE ? ESCAPE '\\')".to_string());
+                values.push(format!("\"{}\"", needle.replace('"', "\"\"")).into());
+                values.push(like.into());
+            } else {
+                clauses.push("(i.preview LIKE ? ESCAPE '\\' OR i.text LIKE ? ESCAPE '\\' OR i.source_app LIKE ? ESCAPE '\\')".to_string());
+                values.extend([
+                    SqlValue::from(like.clone()),
+                    SqlValue::from(like.clone()),
+                    SqlValue::from(like),
+                ]);
+            }
+        }
+        let clause = if clauses.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", clauses.join(" AND "))
+        };
+        let total = connection.query_row(
+            &format!("SELECT count(*) FROM items i {clause}"),
+            params_from_iter(values.iter()),
+            |row| row.get::<_, i64>(0),
+        )? as usize;
+        let mut list_values = values;
+        list_values.push((query.limit.unwrap_or(300).clamp(1, 1_000) as i64).into());
+        list_values.push((query.offset.unwrap_or(0) as i64).into());
+        let sql = format!(
+            "{SELECT_BASE} {clause} ORDER BY i.pinned DESC,i.last_used_at DESC LIMIT ? OFFSET ?"
+        );
+        let mut statement = connection.prepare(&sql)?;
+        let items = statement
+            .query_map(params_from_iter(list_values.iter()), row_to_item)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ListResult { items, total })
+    }
+
+    pub fn get(&self, id: i64) -> Result<Option<ClipItem>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        Ok(connection
+            .query_row(&format!("{SELECT_BASE} WHERE i.id=?1"), [id], row_to_item)
+            .optional()?)
+    }
+
+    pub fn related(&self, id: i64, limit: usize) -> Result<Vec<ClipItem>, StorageError> {
+        let Some(base) = self.get(id)? else {
+            return Ok(Vec::new());
+        };
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let sql = format!("{SELECT_BASE} WHERE i.id<>?1 AND abs(i.last_used_at-?2)<=5000 ORDER BY abs(i.last_used_at-?2),i.last_used_at DESC LIMIT ?3");
+        let mut statement = connection.prepare(&sql)?;
+        let items = statement
+            .query_map(
+                params![id, base.last_used_at, limit.clamp(1, 5) as i64],
+                row_to_item,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(items)
+    }
+
+    pub fn tags(&self) -> Result<Vec<String>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let mut statement = connection.prepare("SELECT t.name FROM tags t JOIN item_tags it ON it.tag_id=t.id GROUP BY t.id ORDER BY count(*) DESC,t.name")?;
+        let tags = statement
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(tags)
+    }
+
+    pub fn set_tags(&self, id: i64, names: &[String]) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let transaction = connection.transaction()?;
+        transaction.execute("DELETE FROM item_tags WHERE item_id=?1", [id])?;
+        let mut clean = names
+            .iter()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+            .collect::<Vec<_>>();
+        clean.sort();
+        clean.dedup();
+        clean.truncate(12);
+        for name in clean {
+            transaction.execute("INSERT OR IGNORE INTO tags(name) VALUES (?1)", [name])?;
+            let tag_id: i64 =
+                transaction.query_row("SELECT id FROM tags WHERE name=?1", [name], |row| {
+                    row.get(0)
+                })?;
+            transaction.execute(
+                "INSERT OR IGNORE INTO item_tags(item_id,tag_id) VALUES (?1,?2)",
+                params![id, tag_id],
+            )?;
+        }
+        transaction.execute(
+            "DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM item_tags)",
+            [],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn toggle_pin(&self, id: i64) -> Result<(), StorageError> {
+        self.execute("UPDATE items SET pinned=1-pinned WHERE id=?1", id)
+    }
+    pub fn touch(&self, id: i64) -> Result<(), StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        connection.execute(
+            "UPDATE items SET last_used_at=?1,use_count=use_count+1 WHERE id=?2",
+            params![now_ms(), id],
+        )?;
+        Ok(())
+    }
+    fn execute(&self, sql: &str, id: i64) -> Result<(), StorageError> {
+        self.connection
+            .lock()
+            .map_err(|_| StorageError::Poisoned)?
+            .execute(sql, [id])?;
+        Ok(())
+    }
+
+    pub fn remove(&self, id: i64) -> Result<(), StorageError> {
+        let blob = self
+            .connection
+            .lock()
+            .map_err(|_| StorageError::Poisoned)?
+            .query_row("SELECT blob_name FROM items WHERE id=?1", [id], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .optional()?
+            .flatten();
+        self.execute("DELETE FROM items WHERE id=?1", id)?;
+        if let Some(hash) = blob {
+            self.gc_blob(&hash)?;
+        }
+        Ok(())
+    }
+
+    pub fn clear_all(&self) -> Result<(), StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        connection.execute_batch("DELETE FROM items WHERE pinned=0; DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM item_tags);")?;
+        drop(connection);
+        self.gc_orphan_blobs()?;
+        Ok(())
+    }
+
+    pub fn stats(&self) -> Result<Stats, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        Ok(connection.query_row("SELECT count(*),coalesce(sum(pinned),0),coalesce(sum(kind='image'),0),coalesce(sum(bytes),0) FROM items", [], |row| Ok(Stats {
+            total: row.get::<_,i64>(0)? as usize, pinned: row.get::<_,i64>(1)? as usize,
+            images: row.get::<_,i64>(2)? as usize, bytes: row.get::<_,i64>(3)? as usize,
+        }))?)
+    }
+
+    pub fn prune(&self, max_items: usize, max_days: u32) -> Result<usize, StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let transaction = connection.transaction()?;
+        let mut removed = 0;
+        if max_days > 0 {
+            removed += transaction.execute(
+                "DELETE FROM items WHERE pinned=0 AND last_used_at<?1",
+                [now_ms() - max_days as i64 * 86_400_000],
+            )?;
+        }
+        if max_items > 0 {
+            removed+=transaction.execute("DELETE FROM items WHERE pinned=0 AND id NOT IN (SELECT id FROM items WHERE pinned=0 ORDER BY last_used_at DESC LIMIT ?1)",[max_items as i64])?;
+        }
+        transaction.execute(
+            "DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM item_tags)",
+            [],
+        )?;
+        transaction.commit()?;
+        drop(connection);
+        if removed > 0 {
+            self.gc_orphan_blobs()?;
+        }
+        Ok(removed)
+    }
+
+    pub fn put_blob(&self, hash: &str, png: &[u8]) -> Result<String, StorageError> {
+        let path = self.blob_path(hash);
+        if !path.exists() {
+            fs::create_dir_all(path.parent().expect("blob shard"))?;
+            fs::write(path, self.keys.seal_blob(png)?)?;
+        }
+        Ok(hash.to_string())
+    }
+    pub fn image_png(&self, id: i64) -> Result<Option<Vec<u8>>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let hash = connection
+            .query_row("SELECT blob_name FROM items WHERE id=?1", [id], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .optional()?
+            .flatten();
+        drop(connection);
+        let Some(hash) = hash else { return Ok(None) };
+        let path = self.blob_path(&hash);
+        if !path.exists() {
+            return Ok(None);
+        }
+        Ok(Some(self.keys.open_blob(&fs::read(path)?)?))
+    }
+    fn blob_path(&self, hash: &str) -> PathBuf {
+        self.data_dir
+            .join("blobs")
+            .join(&hash[..hash.len().min(2)])
+            .join(format!("{hash}.bin"))
+    }
+    fn gc_blob(&self, hash: &str) -> Result<(), StorageError> {
+        let referenced = self
+            .connection
+            .lock()
+            .map_err(|_| StorageError::Poisoned)?
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM items WHERE blob_name=?1)",
+                [hash],
+                |row| row.get::<_, bool>(0),
+            )?;
+        if !referenced {
+            let _ = fs::remove_file(self.blob_path(hash));
+        }
+        Ok(())
+    }
+    pub fn gc_orphan_blobs(&self) -> Result<usize, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        let refs = connection
+            .prepare("SELECT DISTINCT blob_name FROM items WHERE blob_name IS NOT NULL")?
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<HashSet<String>, _>>()?;
+        drop(connection);
+        let root = self.data_dir.join("blobs");
+        let mut removed = 0;
+        if root.exists() {
+            for shard in fs::read_dir(root)? {
+                for file in fs::read_dir(shard?.path())? {
+                    let file = file?;
+                    if file.path().extension().is_some_and(|e| e == "bin") {
+                        if let Some(hash) = file
+                            .path()
+                            .file_stem()
+                            .map(|v| v.to_string_lossy().into_owned())
+                        {
+                            if !refs.contains(&hash) {
+                                fs::remove_file(file.path())?;
+                                removed += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(removed)
+    }
+}
+
+fn backup_before_migration(
+    source: &Connection,
+    data_dir: &Path,
+    keys: &KeyMaterial,
+    version: i64,
+) -> Result<(), StorageError> {
+    let backup_dir = data_dir.join("migration-backups");
+    fs::create_dir_all(&backup_dir)?;
+    let backup_path = backup_dir.join(format!("clipboard-v{version}-{}.db", now_ms()));
+    let mut destination = Connection::open(&backup_path)?;
+    apply_key(&destination, keys)?;
+    let result = rusqlite::backup::Backup::new(source, &mut destination)?.run_to_completion(
+        64,
+        std::time::Duration::from_millis(10),
+        None,
+    );
+    drop(destination);
+    if let Err(error) = result {
+        let _ = fs::remove_file(&backup_path);
+        return Err(error.into());
+    }
+    let verification = Connection::open_with_flags(&backup_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    apply_key(&verification, keys)?;
+    let backed_up_version: i64 =
+        verification.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if backed_up_version != version {
+        let _ = fs::remove_file(&backup_path);
+        return Err(StorageError::Io(std::io::Error::other(
+            "migration backup verification failed",
+        )));
+    }
+    Ok(())
+}
+
+fn row_to_item(row: &Row<'_>) -> rusqlite::Result<ClipItem> {
+    let thumb: Option<Vec<u8>> = row.get("thumb")?;
+    let tags: Option<String> = row.get("tags")?;
+    Ok(ClipItem {
+        id: row.get("id")?,
+        kind: row.get("kind")?,
+        text: row.get("text")?,
+        html: row.get("html")?,
+        preview: row.get("preview")?,
+        hash: row.get("hash")?,
+        thumb: thumb.map(|data| format!("data:image/png;base64,{}", BASE64.encode(data))),
+        width: row.get("width")?,
+        height: row.get("height")?,
+        bytes: row.get::<_, i64>("bytes")? as usize,
+        source_app: row.get("source_app")?,
+        auto_kind: row.get("auto_kind")?,
+        tags: tags
+            .map(|value| value.split(TAG_SEPARATOR).map(str::to_string).collect())
+            .unwrap_or_default(),
+        pinned: row.get::<_, i64>("pinned")? != 0,
+        use_count: row.get::<_, i64>("use_count")? as u32,
+        created_at: row.get("created_at")?,
+        last_used_at: row.get("last_used_at")?,
+    })
+}
+
+fn migrate(connection: &Connection) -> Result<(), rusqlite::Error> {
+    let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if version == 0 {
+        connection.execute_batch("BEGIN;")?;
+        if let Err(error) = connection.execute_batch(SCHEMA) {
+            let _ = connection.execute_batch("ROLLBACK;");
+            return Err(error);
+        }
+        connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        connection.execute_batch("COMMIT;")?;
+    } else if version < SCHEMA_VERSION {
+        connection.execute_batch("BEGIN IMMEDIATE;")?;
+        let result = (|| {
+            if version < 2 {
+                connection.execute_batch(
+                    "CREATE INDEX IF NOT EXISTS idx_items_auto_kind ON items(auto_kind);",
+                )?;
+            }
+            if version < 3 {
+                backfill_auto_kind(connection, "key")?;
+            }
+            if version < 4 {
+                backfill_auto_kind(connection, "model")?;
+            }
+            if version < 5 {
+                connection.execute_batch("ALTER TABLE items ADD COLUMN html TEXT;")?;
+            }
+            connection.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            connection.execute_batch("COMMIT;")
+        })();
+        if result.is_err() {
+            let _ = connection.execute_batch("ROLLBACK;");
+        }
+        result?;
+    }
+    Ok(())
+}
+
+fn backfill_auto_kind(connection: &Connection, target: &str) -> Result<(), rusqlite::Error> {
+    let rows = connection
+        .prepare("SELECT id,text FROM items WHERE kind='text' AND auto_kind='plain'")?
+        .query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for (id, text) in rows {
+        if text
+            .as_deref()
+            .is_some_and(|value| crate::classify::classify(value) == target)
+        {
+            connection.execute(
+                "UPDATE items SET auto_kind=?1 WHERE id=?2",
+                params![target, id],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+pub fn probe_existing(data_dir: &Path) -> Result<CompatibilityProbe, StorageError> {
+    let keys = KeyMaterial::load_existing(data_dir)?;
+    let connection = Connection::open_with_flags(
+        data_dir.join("clipboard.db"),
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    apply_key(&connection, &keys)?;
+    Ok(CompatibilityProbe {
+        schema_version: connection.pragma_query_value(None, "user_version", |r| r.get(0))?,
+        item_count: connection.query_row("SELECT count(*) FROM items", [], |r| r.get(0))?,
+        sqlite_version: connection.query_row("SELECT sqlite_version()", [], |r| r.get(0))?,
+        cipher: connection
+            .pragma_query_value(None, "cipher", |r| r.get(0))
+            .unwrap_or_else(|_| "sqleet(default)".into()),
+        os_protected: keys.is_os_protected(),
+    })
+}
+
+trait OptionalRow<T> {
+    fn optional(self) -> rusqlite::Result<Option<T>>;
+}
+impl<T> OptionalRow<T> for rusqlite::Result<T> {
+    fn optional(self) -> rusqlite::Result<Option<T>> {
+        match self {
+            Ok(v) => Ok(Some(v)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_item(hash: &str, text: &str) -> NewItem {
+        NewItem {
+            kind: "text".into(),
+            text: Some(text.into()),
+            html: None,
+            preview: text.into(),
+            auto_kind: "plain".into(),
+            hash: hash.into(),
+            blob_name: None,
+            thumb: None,
+            width: None,
+            height: None,
+            bytes: text.len(),
+            source_app: Some("test.exe".into()),
+        }
+    }
+
+    #[test]
+    fn persistent_store_round_trip() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(directory.path()).unwrap();
+        let (first, created) = store.add(text_item("hash-a", "alpha")).unwrap();
+        assert!(created);
+        assert!(!store.add(text_item("hash-a", "alpha")).unwrap().1);
+        store
+            .set_tags(first, &["配置".into(), "API".into()])
+            .unwrap();
+        store.toggle_pin(first).unwrap();
+        let listed = store.list(&ListQuery::default()).unwrap();
+        assert_eq!(listed.total, 1);
+        assert_eq!(listed.items[0].use_count, 1);
+        assert!(listed.items[0].pinned);
+        assert_eq!(store.tags().unwrap().len(), 2);
+        assert_eq!(store.stats().unwrap().total, 1);
+    }
+
+    #[test]
+    fn encrypted_blob_round_trip() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(directory.path()).unwrap();
+        let png = b"\x89PNG\r\nfixture";
+        let blob = store.put_blob("abcdef", png).unwrap();
+        let mut item = text_item("image-hash", "");
+        item.kind = "image".into();
+        item.text = None;
+        item.blob_name = Some(blob);
+        let (id, _) = store.add(item).unwrap();
+        assert_eq!(
+            store.image_png(id).unwrap().as_deref(),
+            Some(png.as_slice())
+        );
+    }
+
+    #[test]
+    fn v4_migration_creates_verified_encrypted_backup() {
+        let directory = tempfile::tempdir().unwrap();
+        let keys = KeyMaterial::load_or_create(directory.path()).unwrap();
+        let connection = Connection::open(directory.path().join("clipboard.db")).unwrap();
+        apply_key(&connection, &keys).unwrap();
+        connection
+            .execute_batch(&SCHEMA.replace("text TEXT, html TEXT,", "text TEXT,"))
+            .unwrap();
+        connection.pragma_update(None, "user_version", 4).unwrap();
+        drop(connection);
+
+        let store = SqliteStore::open(directory.path()).unwrap();
+        assert_eq!(
+            store
+                .connection
+                .lock()
+                .unwrap()
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            5
+        );
+        let backup_path = fs::read_dir(directory.path().join("migration-backups"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let backup =
+            Connection::open_with_flags(backup_path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        apply_key(&backup, &keys).unwrap();
+        assert_eq!(
+            backup
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            4
+        );
+    }
+
+    #[test]
+    fn opens_real_electron_database_read_only_when_requested() {
+        let Some(path) = std::env::var_os("WCC_COMPAT_DATA_DIR") else {
+            return;
+        };
+        let probe = probe_existing(Path::new(&path)).unwrap();
+        assert_eq!(probe.schema_version, 4);
+        assert!(probe.sqlite_version.starts_with("3."));
+        assert!(probe.os_protected);
+
+        let data_dir = Path::new(&path);
+        let keys = KeyMaterial::load_existing(data_dir).unwrap();
+        let connection = Connection::open_with_flags(
+            data_dir.join("clipboard.db"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .unwrap();
+        apply_key(&connection, &keys).unwrap();
+        let blob: Option<String> = connection
+            .query_row(
+                "SELECT blob_name FROM items WHERE blob_name IS NOT NULL LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap();
+        if let Some(hash) = blob {
+            let sealed = fs::read(
+                data_dir
+                    .join("blobs")
+                    .join(&hash[..2])
+                    .join(format!("{hash}.bin")),
+            )
+            .unwrap();
+            assert!(keys.open_blob(&sealed).unwrap().starts_with(b"\x89PNG"));
+        }
+    }
+}

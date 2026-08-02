@@ -49,33 +49,29 @@
 
 - Windows x64：`Witch-Clipboard-<版本>-x64-setup.exe`
 - Windows ARM64：`Witch-Clipboard-<版本>-arm64-setup.exe`（实验性）
-- macOS Intel / Apple Silicon：对应架构的 `.dmg`（实验性）
 
-Windows 安装包使用 NSIS，可选安装位置，卸载不删除数据。macOS 实验版暂未进行
-Apple Developer ID 签名与公证，首次打开时可能需要在“隐私与安全性”中手动允许。
-自己构建的产物在 `release/` 下。
+Windows 安装包使用 NSIS，可选安装位置，卸载不删除数据。当前 Tauri 版本只正式面向
+Windows；macOS 需要补齐 Keychain、`NSPasteboard`、辅助功能权限和 LaunchAgent 后才会重新提供。
+自己构建的产物在 `src-tauri/target/<target>/release/bundle/nsis/` 下。
 
 从源码跑：
 
 ```bash
-npm install          # 会自动为 Electron 重建原生模块
+npm install
 npm run dev          # 开发模式（面板会自动亮出来）
-npm run selftest     # 在真实 Electron 里跑 95 项断言
+npm run selftest     # Rust/Tauri 核心测试
+npm run selftest:electron # 旧 Electron 回滚链路的 100 项断言
+npm run selftest:system-clipboard # 显式修改系统剪贴板的真实 E2E
 npm run typecheck    # 类型检查
-npm run build        # 构建 out/ 产物
+npm run build        # 构建 Tauri 应用
 npm run dist         # Windows x64 NSIS 安装包
 npm run dist:win:arm64
 npm run dist:win:all # 同时构建 Windows x64 / ARM64
-npm run dist:mac     # 需在 macOS 上构建 Intel / Apple Silicon
 npm run icons        # 重新生成图标
 ```
 
-> Electron 二进制若下载失败，用镜像补装：
-> `$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; node node_modules/electron/install.js`
-> 打包时若下载工具链失败：`$env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'`
-
-**环境要求**：开发需要 Node 22+。Windows x64 是主支持平台；Windows ARM64 与 macOS
-Intel / Apple Silicon 目前属于实验性构建。
+**环境要求**：开发需要 Node 22+、Rust stable、Visual Studio C++ Build Tools 和 WebView2。
+Windows x64 是主支持平台；Windows ARM64 目前属于实验性构建。
 
 ## 键位
 
@@ -145,17 +141,13 @@ Intel / Apple Silicon 目前属于实验性构建。
 - 设置页「关于与更新」里有**检查更新**按钮，显示当前版本，结果如实回报
   （已是最新 / 有新版本 / 失败原因 / 开发模式不支持）
 - 启动后延迟 12 秒自动查一次，查不到或出错都不打扰
-- 查到新版本只提示，**不会先偷偷下 100 MB**（`autoDownload = false`），
-  也不会在你关掉应用时悄悄装上（`autoInstallOnAppQuit = false`）
+- 查到新版本只提示，不会自动下载，也不会在退出时静默安装
 - 下载要点「下载更新」，装要点「重启并安装」
 - 点了**「暂不更新」**就记住这个版本号，之后启动不再提示同一个版本；
   手动检查仍然如实报告，不会因为你跳过就骗你说「已是最新」
 
-> 安装包没有代码签名，更新时 Windows 会再弹一次 SmartScreen 提示。
-
-更新过程会写日志到 `%APPDATA%\WitchCat-Clipboard\update.log`。打包后的应用没有控制台，
-更新又依赖网络，出问题时这个文件是唯一的线索——事实上第一版 1.0.0 的更新检查有个
-CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定位出来的。
+Tauri updater 会验证发行产物的独立签名；Windows Authenticode 是否可用取决于发布仓库是否已
+配置代码签名证书。两种签名用途不同，缺少任何一种都不会被文档描述成“已签名”。
 
 ## 数据存放在哪
 
@@ -165,9 +157,8 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
 | --- | --- |
 | `clipboard.db` | SQLCipher 加密数据库：条目、标签、缩略图、全文索引 |
 | `blobs/<前2位>/<sha256>.bin` | AES-256-GCM 加密的原图，内容寻址、自动去重 |
-| `master.key` | 主密钥，由 Electron `safeStorage` 交给操作系统安全存储保护 |
+| `master.key` | 主密钥，与旧 Electron 数据格式兼容，由 Windows DPAPI 保护 |
 | `settings.json` | 界面与行为设置，明文 |
-| `update.log` | 更新检查的日志，出问题时的唯一线索（上限 256 KB） |
 
 从旧版本（叫 ZTB 时）升级会自动把 `%APPDATA%\ztb` 里的数据搬过来，只搬不删。
 
@@ -197,38 +188,33 @@ CJS/ESM 互操作 bug（`mod.autoUpdater` 是 `undefined`），就是靠它定�
 | `resources/icon.png` / `icon-256.png` | 应用图标、安装包图标、README |
 | `resources/tray.png` / `tray@2x.png` | 同一母版生成的托盘图标（`nativeImage` 按 `@2x` 约定自动挑高分屏版本） |
 
-替换母版后跑 `npm run icons` 重新生成。缩放用的是 Electron 自带的 Chromium——
-它本来就在依赖里，不用再引 sharp/resvg 这类要编译的东西；画到 canvas 再取
-`toDataURL`，拿到的是真正带 alpha 的位图。
+替换母版后跑 `npm run icons` 重新生成。该维护脚本复用回滚工具链里的 Electron/Chromium
+在 canvas 中完成缩放；正式 Tauri 应用不会携带 Electron 运行时。
 
 ## 技术栈
 
-Electron 43 · React 19 · TypeScript 7 · Tailwind CSS 4 · Vite 7（electron-vite）·
-better-sqlite3-multiple-ciphers（SQLCipher）· koffi（免编译调 Win32）· electron-builder
+Tauri 2 · Rust · React 19 · TypeScript 7 · Tailwind CSS 4 · Vite 7 ·
+sqleet/SQLite · AES-256-GCM · windows-sys · NSIS
 
 ```
-electron/
-  main/      窗口、迷你面板、托盘、热键、IPC、剪贴板监听、粘贴回写、Win32 绑定、自检
-  data/      加密、blob 仓库、SQLite（建表/迁移）、仓库实现、保留策略
-  preload/   contextBridge 白名单，渲染进程拿不到 node
-  shared/    三方共用的类型契约与内容分类
-src/         渲染进程（App = 完整面板，MiniApp = 迷你面板）
-scripts/     零依赖 PNG 图标生成器
+src-tauri/   Rust 后端：窗口、托盘、热键、剪贴板、加密存储、局域网服务、更新命令
+src/         React UI（App = 完整面板，MiniApp = 迷你面板）
+electron/    旧 Electron 回滚实现与兼容性自检，不进入 Tauri 安装包
+scripts/     性能基准、系统剪贴板 E2E 与图标维护脚本
 ```
 
 ### 几个关键取舍
 
-- **剪贴板监听**用 Win32 `GetClipboardSequenceNumber` 判断有没有变化。这个调用极便宜，
+- **剪贴板监听**由 Rust 调 Win32 `GetClipboardSequenceNumber` 判断有没有变化。这个调用极便宜，
   所以 400ms 轮询在空闲时几乎不耗 CPU——不用每次都去解码剪贴板内容。拿不到原生能力时退化成内容指纹比对。
 - **搜索**走 FTS5，分词器选 `trigram`。默认的 `unicode61` 切不开中文，中文子串搜不到；
   trigram 可以，但最短 3 字符，所以 1~2 字的关键词回退到转义后的 `LIKE` 扫描。
 - **图片**内容寻址：`blobs/<hash 前 2 位>/<hash>.bin`，同一张图只存一份。
   数据库里只放缩略图，原图按需解密。
-- **加密**：主密钥 32 字节随机，用 `safeStorage`（Windows DPAPI）保护后落盘；
+- **加密**：主密钥 32 字节随机，沿用兼容 `safeStorage` 的 Windows DPAPI 封装后落盘；
   数据库走 SQLCipher，图片走 AES-256-GCM，两者用不同的派生子密钥。
-- **数据目录固定成一个名字**：Electron 默认的 userData 路径来自应用名，开发时取 `package.json`
-  的 `name`、打包后取 `productName`，两者不一致就会读到两个不同的库。所以显式 `setPath` 到
-  `%APPDATA%\WitchCat-Clipboard`。
+- **数据目录固定成一个名字**：Tauri 与旧 Electron 都使用 `%APPDATA%\WitchCat-Clipboard`，
+  避免迁移后读取到两套数据库。
 - **`safeStorage` 在 Windows 上并不只绑用户账户**：它的加密密钥存在 profile 的 `Local State`
   文件里（再由 DPAPI 保护）。所以「换数据目录」等于「换了一把随机密钥」，搬过去的 `master.key`
   会解不开——迁移时必须把 `Local State` 一起带过来。这一条是改名时踩出来的，不踩一次很难想到。
@@ -237,25 +223,23 @@ scripts/     零依赖 PNG 图标生成器
   看门狗每 200ms 问系统「现在前台窗口属于哪个进程」，不是自己就收起。
   关键的安全条件是**必须先确认自己拿到过前台**才允许收起——否则「一直没抢到焦点」会被误判成
   「用户点了别处」，面板会自己莫名消失。这几个分支在 `npm run selftest` 里都有断言。
-- **剪贴板文件列表只能自己读**：Electron 的 clipboard API 拿不到 `CF_HDROP`，所以用 koffi
-  调 `OpenClipboard` + `DragQueryFileW` 读，用 `GlobalAlloc` + 手搓 `DROPFILES` 结构写。
+- **剪贴板文件列表由 Rust 直接处理**：调用 `OpenClipboard` + `DragQueryFileW` 读，
+  用 `GlobalAlloc` + `DROPFILES` 写。
   采集时文件要**先于文本判断**——资源管理器复制文件时往往同时带一份路径文本，
   先看文本就会把「复制了一个视频」记成一条普通字符串。
 - **托盘单击有个必须处理的竞态**：点托盘图标时面板会先因失焦自动收起，紧接着才收到 `click`
   事件。少了「刚被收起就忽略这一下点击」的冷却判断，用户点托盘想收起面板，面板会立刻又弹回来、
   永远收不掉。这条不变量由 `toggleFromTray()` 自己保证，并且在自检里有断言。
-- **自动粘贴**用 `keybd_event` 而不是 `SendInput`：koffi 里描述 INPUT 联合体成本高，
-  收益为零。发 Ctrl+V 之前会先释放残留的修饰键，否则 `Alt+V` 唤出面板时按着的 Alt
+- **自动粘贴**通过 Win32 模拟按键。发 Ctrl+V 之前会先释放残留的修饰键，否则 `Alt+V` 唤出面板时按着的 Alt
   会让目标程序收到 Ctrl+Alt+V。
-- **数据库打不开时**（master.key 丢了 / 换了 Windows 账户）不静默丢数据：弹窗让用户选，
-  旧库改名成 `clipboard.db.locked-<时间戳>` 保留。真的建不了库时降级到内存存储，界面会明确标出来。
+- **数据库打不开时**（master.key 丢失、换 Windows 账户或数据损坏）不静默覆盖或创建空库；
+  应用明确报错并保留原数据，用户仍可安装旧 Electron 版本回退。
 
 ## 验证
 
-没有引入测试框架，验证集中在 `npm run selftest`——它在**真实 Electron 运行时**里跑 95 项断言，
-覆盖加密往返与篡改检测、内容分类、去重、FTS/LIKE 搜索与转义、标签、图片解密一致性、保留策略与
-blob 回收、跨设备文字/图片同步、5 秒关联检索、`CF_HDROP` 真实往返、托盘单击竞态、
-点到别处收起的全部分支。
+`npm run selftest` 运行 Rust/Tauri 核心测试；`npm run selftest:electron` 保留旧 Electron
+实现的 100 项回归断言；`npm run selftest:system-clipboard` 则显式覆盖 HTML、图片、`CF_HDROP`
+和自动粘贴的真实系统链路。发布前还会运行类型检查与按架构打包。
 
 端到端手工验证过的路径：文字/图片/文件自动入库、记事本自动粘贴（含中文）、外部进程能把粘出去的
 内容读成真文件、打包版正常运行、焦点离开后面板自动消失。
@@ -275,17 +259,14 @@ blob 回收、跨设备文字/图片同步、5 秒关联检索、`CF_HDROP` 真�
 | --- | --- | --- |
 | Windows 10/11 x64 | **正式支持** | 完整的监听、来源识别、自动粘贴、文件剪贴板、托盘与更新能力 |
 | Windows 11 ARM64 | **实验性** | 提供原生 ARM64 安装包；原生依赖与常用流程需要更多真机验证 |
-| macOS Intel | **实验性** | 可打包运行；基础历史、搜索、标签、图片与局域网同步可用 |
-| macOS Apple Silicon | **实验性** | 提供原生 arm64 构建；能力边界与 Intel 版相同 |
+| macOS Intel / Apple Silicon | **不提供** | 尚未实现与 Windows 等价的系统安全存储、剪贴板、自动粘贴和自启能力 |
 
-- `electron/main/win32.ts` 在非 Windows 上整体降级，因此 macOS 暂无来源程序识别、自动切回并粘贴、
-  `CF_HDROP` 文件列表和 Windows 敏感剪贴板标记识别；可以手动复制后再粘贴。
 - **Win11 可能把托盘图标收进「溢出」区**，那样就看不到也点不到图标。这时右键任务栏 →
   任务栏设置 → 系统托盘图标 → 其他系统托盘图标 → 把 Witch Clipboard 打开。图标在溢出区时
   `tray.getBounds()` 返回 0，程序会退回「在光标附近弹出」并在日志里警告。
 - `Ctrl+,` 打开设置在中文输入法激活时可能被 IME 吞掉，用齿轮按钮。
-- 渲染包约 970 KB（React + motion 为主）。本地加载无感，没做拆包。
-- 安装包约 102 MB，其中绝大部分是 Electron 运行时本身。
+- Tauri x64 NSIS 安装包当前约 3.18 MB；依赖系统 WebView2，离线且未安装 WebView2 的机器需要先补运行时。
+- 面板隐藏后会释放 WebView，长期后台态约 14 MB；面板显示时仍会启动多个 WebView2 进程。
 
 ## 版本历史
 

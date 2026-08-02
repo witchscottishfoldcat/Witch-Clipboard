@@ -11,6 +11,7 @@ import { appendFileSync, existsSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { UpdateStatus } from '@shared/types'
 import { getSettings, saveSettings } from './settings'
+import packageJson from '../../package.json'
 
 /** 启动后延迟一会儿再查，别和采集、建库抢启动那几秒 */
 const STARTUP_DELAY_MS = 12_000
@@ -18,14 +19,15 @@ const STARTUP_DELAY_MS = 12_000
 type Updater = typeof import('electron-updater').autoUpdater
 
 let updater: Updater | null = null
-let status: UpdateStatus = { state: 'idle', currentVersion: app.getVersion() }
+const currentVersion = (): string => (app.isPackaged ? app.getVersion() : packageJson.version)
+let status: UpdateStatus = { state: 'idle', currentVersion: currentVersion() }
 
 function broadcast(): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('update:status', status)
 }
 
 function setStatus(patch: Partial<UpdateStatus>): UpdateStatus {
-  status = { ...status, ...patch, currentVersion: app.getVersion() }
+  status = { ...status, ...patch, currentVersion: currentVersion() }
   broadcast()
   return status
 }
@@ -86,7 +88,7 @@ async function getUpdater(): Promise<Updater | null> {
     updater.autoDownload = false // 必须用户点了才下
     updater.autoInstallOnAppQuit = false // 也不在退出时偷偷装
     updater.logger = fileLogger()
-    updater.logger.info(`当前版本 ${app.getVersion()}，更新日志：${updateLogPath()}`)
+    updater.logger.info(`当前版本 ${currentVersion()}，更新日志：${updateLogPath()}`)
 
     updater.on('update-available', (info) => {
       setStatus({ state: 'available', version: info.version, notes: releaseNotes(info) })
@@ -155,7 +157,7 @@ export async function checkForUpdate(silent = false): Promise<UpdateStatus> {
     }
   }
 
-  if (!version || version === app.getVersion()) return setStatus({ state: 'none' })
+  if (!version || version === currentVersion()) return setStatus({ state: 'none' })
 
   // 用户说过这个版本先不更新，启动时的自动检查就别再提；手动点「检查更新」还是要如实告诉他
   if (silent && getSettings().skippedVersion === version) {
@@ -206,7 +208,7 @@ export function currentStatus(): UpdateStatus {
 /** 启动后自动查一次；失败、无更新、以及被跳过的版本都不会打扰用户 */
 export function scheduleStartupCheck(): void {
   if (!app.isPackaged && !fakeVersion()) return
-  write('info', `${STARTUP_DELAY_MS / 1000} 秒后自动检查一次更新（当前 ${app.getVersion()}）`)
+  write('info', `${STARTUP_DELAY_MS / 1000} 秒后自动检查一次更新（当前 ${currentVersion()}）`)
   setTimeout(() => {
     write('info', '开始自动检查更新')
     void checkForUpdate(true).then((s) =>

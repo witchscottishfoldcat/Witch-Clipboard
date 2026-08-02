@@ -9,6 +9,7 @@ import { MiniRow } from '@/components/MiniRow'
 import { Toast, type ToastMessage } from '@/components/Toast'
 import { DEFAULT_VISIBLE_FILTERS, visibleKindFilters } from '@/lib/kinds'
 import { applyAccent } from '@/lib/accent'
+import { applyPanelBackgroundOpacity } from '@/lib/opacity'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制，请手动 Ctrl+V',
@@ -56,6 +57,7 @@ export default function MiniApp() {
       setQuickPasteModifiers(settings.quickPasteModifiers)
       setVisibleFilters(settings.visibleFilters)
       applyAccent(settings.accent)
+      applyPanelBackgroundOpacity(settings.opacity)
     })
   }, [])
 
@@ -142,7 +144,7 @@ export default function MiniApp() {
   }, [items, move, paste, searching, selectedId])
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-white/78 text-black dark:bg-[#0b0b12]/76 dark:text-white">
+    <div className="panel-surface relative flex h-full flex-col overflow-hidden text-black dark:text-white">
       {/* 顶栏：可拖动，右侧是展开和关闭 */}
       <div className="drag-region flex items-center gap-2 px-2.5 pt-2.5 pb-1.5">
         <Logo className="no-drag size-6 shrink-0 overflow-hidden rounded-[9px] bg-white p-[1.5px] shadow-sm shadow-black/12 ring-1 ring-black/5 dark:shadow-black/25 dark:ring-white/15" />

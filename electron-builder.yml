@@ -25,6 +25,7 @@ files:
   # 原生模块的编译中间产物和测试扩展没必要跟着安装包走
   - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/obj*/**'
   - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/test_extension.node'
+  - '!node_modules/better-sqlite3-multiple-ciphers/build/Release/*.{iobj,ipdb,lib,exp,pdb}'
   - '!node_modules/better-sqlite3-multiple-ciphers/{deps,src,build/deps}/**'
   - '!node_modules/better-sqlite3-multiple-ciphers/build/*.{vcxproj,vcxproj.filters,sln,mk,gypi}'
 

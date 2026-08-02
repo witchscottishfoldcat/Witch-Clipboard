@@ -1,0 +1,30 @@
+[package]
+name = "libsqlite3-sys"
+version = "0.38.1"
+edition = "2021"
+links = "sqlite3"
+license = "MIT"
+description = "Native SQLite bindings compiled against Witch Clipboard's SQLite3MultipleCiphers amalgamation"
+build = "build.rs"
+
+[features]
+default = ["min_sqlite_version_3_34_1"]
+buildtime_bindgen = []
+bundled = []
+bundled-sqlcipher = ["bundled"]
+bundled-sqlcipher-vendored-openssl = ["bundled-sqlcipher"]
+bundled-windows = []
+bundled_bindings = []
+column_metadata = []
+in_gecko = []
+loadable_extension = []
+min_sqlite_version_3_34_1 = []
+preupdate_hook = []
+session = ["preupdate_hook"]
+sqlcipher = []
+unlock_notify = []
+wasm32-wasi-vfs = []
+with-asan = []
+
+[build-dependencies]
+cc = "1.2"

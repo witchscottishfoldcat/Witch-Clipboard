@@ -4,12 +4,17 @@ import { showPanel, hidePanel, toggleFromTray, markQuitting, type AnchorRect } f
 import { showMini, hideMini, toggleMiniFromTray } from './mini'
 import { currentHotkey } from './shortcuts'
 import { getSettings } from './settings'
+import packageJson from '../../package.json'
 
 let tray: Tray | null = null
 
 export function createTray(): Tray {
-  const iconPath = join(app.getAppPath(), 'resources', 'tray.png')
-  const image = nativeImage.createFromPath(iconPath)
+  const iconCandidates = [
+    join(app.getAppPath(), 'resources', 'tray.png'),
+    join(process.cwd(), 'resources', 'tray.png'),
+  ]
+  const iconPath = iconCandidates.find((path) => !nativeImage.createFromPath(path).isEmpty())
+  const image = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
   if (image.isEmpty()) console.error(`[tray] 图标加载失败：${iconPath}`)
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
 
@@ -32,8 +37,9 @@ export function createTray(): Tray {
   })
 
   const menu = Menu.buildFromTemplate([
+    { label: '打开剪贴板', click: () => showPanel(trayBounds()) },
     { label: '迷你预览面板', click: () => showMini(trayBounds()) },
-    { label: `完整面板 (${currentHotkey() ?? '未注册'})`, click: () => showPanel(trayBounds()) },
+    { label: `快捷键：${currentHotkey() ?? '未注册'}`, enabled: false },
     {
       label: '全部收起',
       click: () => {
@@ -42,7 +48,7 @@ export function createTray(): Tray {
       },
     },
     { type: 'separator' },
-    { label: `Witch Clipboard v${app.getVersion()}`, enabled: false },
+    { label: `Witch Clipboard v${packageJson.version}`, enabled: false },
     { type: 'separator' },
     {
       label: '退出',

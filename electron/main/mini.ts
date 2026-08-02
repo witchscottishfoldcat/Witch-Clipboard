@@ -10,17 +10,23 @@ import { isQuitting, type AnchorRect } from './window'
 
 const MINI_W = 340
 const MINI_H = 470
+const IDLE_RELEASE_MS = 60_000
 const isDev = !app.isPackaged
 
 let mini: BrowserWindow | null = null
 let hiddenAt = 0
+let releaseTimer: NodeJS.Timeout | null = null
+let destroyingMini: BrowserWindow | null = null
+let beforeShow: (() => void) | null = null
 
 export function getMini(): BrowserWindow | null {
   return mini
 }
 
 export function createMini(): BrowserWindow {
-  mini = new BrowserWindow({
+  if (mini && !mini.isDestroyed()) return mini
+
+  const win = new BrowserWindow({
     width: MINI_W,
     height: MINI_H,
     show: false,
@@ -44,45 +50,76 @@ export function createMini(): BrowserWindow {
     },
   })
 
-  mini.setAlwaysOnTop(true, 'pop-up-menu')
-  mini.setMenuBarVisibility(false)
+  mini = win
+  win.setAlwaysOnTop(true, 'pop-up-menu')
+  win.setMenuBarVisibility(false)
 
   // 和完整面板一样：平时点 × 只隐藏，但退出时必须放行。
   // 少了这个判断，app.quit() 会被这个窗口一直否决，应用永远退不掉。
-  // 和完整面板一样：平时点 × 只隐藏，但退出时必须放行。
-  // 少了这个判断，app.quit() 会被这个窗口一直否决，应用永远退不掉。
-  mini.on('close', (e) => {
-    if (isQuitting()) return
+  win.on('close', (e) => {
+    if (isQuitting() || destroyingMini === win) return
     e.preventDefault()
     hideMini()
   })
 
-  mini.on('blur', () => {
+  win.on('closed', () => {
+    if (mini === win) {
+      mini = null
+      cancelRelease()
+      stopWatch?.()
+      stopWatch = null
+    }
+    if (destroyingMini === win) destroyingMini = null
+  })
+
+  win.on('blur', () => {
     if (autoHideDisabled()) return
-    if (mini?.webContents.isDevToolsFocused()) return
+    if (win.webContents.isDevToolsFocused()) return
     hideMini()
   })
 
+  win.on('show', () => notifyShown(win))
+
   if (isDev) {
     // 开发时把渲染进程的日志转到终端，省得为了看一行 log 去开 DevTools
-    mini.webContents.on('console-message', (event) => {
+    win.webContents.on('console-message', (event) => {
       console.log('[mini renderer]', event.message)
     })
   }
 
-  mini.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) {
-    void mini.loadURL(`${devUrl}?mode=mini`)
+    void win.loadURL(`${devUrl}?mode=mini`)
   } else {
-    void mini.loadFile(join(__dirname, '../renderer/index.html'), { search: 'mode=mini' })
+    void win.loadFile(join(__dirname, '../renderer/index.html'), { search: 'mode=mini' })
   }
 
-  return mini
+  return win
+}
+
+/** 由启动模块注入，避免 mini.ts 与 window.ts 增加新的循环依赖。 */
+export function setMiniBeforeShow(callback: () => void): void {
+  beforeShow = callback
+}
+
+/** 立即释放迷你面板及其 renderer；切换到完整面板时调用。 */
+export function releaseMini(): void {
+  cancelRelease()
+  stopWatch?.()
+  stopWatch = null
+  const win = mini
+  if (!win || win.isDestroyed()) {
+    mini = null
+    return
+  }
+  destroyingMini = win
+  mini = null
+  win.destroy()
 }
 
 /** 贴着托盘图标弹出，右缘对齐图标右缘、压在任务栏上方 */
@@ -104,12 +141,13 @@ function position(win: BrowserWindow, anchor?: AnchorRect): void {
 let stopWatch: (() => void) | null = null
 
 export function showMini(anchor?: AnchorRect): void {
+  beforeShow?.()
+  cancelRelease()
   const win = mini ?? createMini()
   // 抢焦点之前记下原来的前台窗口，粘贴时要还给它
   rememberForegroundWindow()
   position(win, anchor)
   claimForeground(win)
-  win.webContents.send('panel:shown')
 
   stopWatch?.()
   stopWatch = watchOutsideClick(win, hideMini)
@@ -120,6 +158,32 @@ export function hideMini(): void {
   stopWatch = null
   if (mini?.isVisible()) hiddenAt = Date.now()
   mini?.hide()
+  scheduleRelease()
+}
+
+function cancelRelease(): void {
+  if (releaseTimer) clearTimeout(releaseTimer)
+  releaseTimer = null
+}
+
+function scheduleRelease(): void {
+  cancelRelease()
+  if (!mini || mini.isDestroyed()) return
+  releaseTimer = setTimeout(() => {
+    releaseTimer = null
+    if (mini && !mini.isVisible()) releaseMini()
+  }, IDLE_RELEASE_MS)
+  releaseTimer.unref()
+}
+
+function notifyShown(win: BrowserWindow): void {
+  const notify = (): void => {
+    if (win.isDestroyed() || !win.isVisible()) return
+    win.webContents.send('panel:shown')
+    win.webContents.send('items:changed')
+  }
+  if (win.webContents.isLoadingMainFrame()) win.webContents.once('did-finish-load', notify)
+  else notify()
 }
 
 export function miniHiddenRecently(within = 400): boolean {

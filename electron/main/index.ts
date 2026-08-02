@@ -1,6 +1,13 @@
 import { app, BrowserWindow, clipboard, dialog } from 'electron'
-import { createPanel, getPanel, hidePanel, showPanel, markQuitting } from './window'
-import { createMini, getMini, hideMini } from './mini'
+import {
+  getPanel,
+  hidePanel,
+  showPanel,
+  markQuitting,
+  releasePanel,
+  setPanelBeforeShow,
+} from './window'
+import { getMini, hideMini, releaseMini, setMiniBeforeShow } from './mini'
 import { createTray, updateTrayTooltip } from './tray'
 import {
   registerHotkey,
@@ -34,7 +41,9 @@ if (process.argv.includes('--self-test')) {
     })
 } else {
   // 单实例锁依赖 userData 路径，所以要先把路径定下来
-  useCanonicalUserData()
+  const demoUserData = process.env.WCC_DEMO_USER_DATA_DIR
+  if (demoUserData) app.setPath('userData', demoUserData)
+  else useCanonicalUserData()
 
   // 只允许一个实例；第二次启动等于唤出面板
   const gotLock = app.requestSingleInstanceLock()
@@ -73,16 +82,21 @@ function bootstrap(): void {
       memoryFallback = true
     }
 
-    createPanel()
-    createMini()
+    // 窗口按需创建；完整面板和迷你面板互斥，任何时刻最多保留一个 renderer。
+    // 隐藏启动时因此可以只运行主进程，不再预加载两份 React 页面。
+    setPanelBeforeShow(releaseMini)
+    setMiniBeforeShow(releasePanel)
 
     const broadcastChanged = (): void => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('items:changed')
+      // 隐藏窗口在重新显示时会主动刷新，不必在后台为每次复制重复查库。
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isVisible()) win.webContents.send('items:changed')
+      }
     }
 
     const broadcastCrossDevice = (): void => {
       for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send('cross-device:changed')
+        if (win.isVisible()) win.webContents.send('cross-device:changed')
       }
     }
 
@@ -177,7 +191,6 @@ function bootstrap(): void {
     if (!silent && !app.isPackaged) showPanel()
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createPanel()
       showPanel()
     })
   }

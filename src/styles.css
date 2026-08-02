@@ -15,6 +15,20 @@
   --radius-panel: 14px;
 }
 
+:root {
+  --panel-background-opacity: 0.9;
+  --panel-background-rgb: 255 255 255;
+}
+
+html[data-theme='dark'] {
+  --panel-background-rgb: 11 11 18;
+}
+
+.panel-surface {
+  background-color: rgb(var(--panel-background-rgb) / var(--panel-background-opacity));
+  backdrop-filter: blur(24px);
+}
+
 /* 统一按钮调色盘：Tailwind 的 brand-* 工具类最终都读取这些变量 */
 html[data-accent='blue'] {
   --color-brand-400: oklch(0.7 0.15 250);

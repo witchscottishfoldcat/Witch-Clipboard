@@ -20,12 +20,14 @@ import {
   Mail,
   Globe2,
   Scale,
+  Blend,
 } from 'lucide-react'
 import type { FilterId, SecurityInfo, Settings } from '@shared/types'
 import { api } from '@/lib/api'
 import { UpdateSection } from './UpdateSection'
 import { KIND_FILTERS } from '@/lib/kinds'
 import { ACCENT_OPTIONS, applyAccent } from '@/lib/accent'
+import { applyPanelBackgroundOpacity } from '@/lib/opacity'
 
 interface Props {
   onClose: () => void
@@ -109,6 +111,7 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
       document.documentElement.dataset['theme'] = resolved
     }
     if (p.accent) applyAccent(p.accent)
+    if (p.opacity !== undefined) applyPanelBackgroundOpacity(p.opacity)
     return next
   }
 
@@ -229,6 +232,34 @@ export function SettingsSheet({ onClose, onCleared, onToast }: Props) {
                   {text}
                 </button>
               ))}
+            </div>
+          </section>
+
+          {/* 背景透明度 */}
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-black/45 dark:text-white/45">
+              <Blend className="size-3.5" />
+              背景透明度
+              <span className="ml-auto tabular-nums text-[10.5px] text-black/45 dark:text-white/45">
+                {settings?.opacity ?? 90}%
+              </span>
+            </div>
+            <div className="flex h-9 items-center gap-2.5 rounded-xl bg-black/[0.035] px-3 dark:bg-white/[0.055]">
+              <span className="text-[9.5px] text-black/30 dark:text-white/30">20%</span>
+              <input
+                type="range"
+                min={20}
+                max={100}
+                step={5}
+                value={settings?.opacity ?? 90}
+                aria-label="背景透明度"
+                onChange={(event) => void patch({ opacity: Number(event.target.value) })}
+                className="h-1 flex-1 cursor-pointer accent-[var(--color-brand-500)]"
+              />
+              <span className="text-[9.5px] text-black/30 dark:text-white/30">100%</span>
+            </div>
+            <div className="text-[10px] leading-4 text-black/35 dark:text-white/35">
+              默认 90%，只改变项目背景，文字、图标和内容保持清晰。
             </div>
           </section>
 

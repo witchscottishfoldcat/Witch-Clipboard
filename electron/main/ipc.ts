@@ -36,7 +36,10 @@ export interface IpcDeps {
 }
 
 function broadcast(channel: string): void {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel)
+  // 隐藏窗口重新显示时会主动刷新；后台不做无意义的列表/统计查询。
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isVisible()) win.webContents.send(channel)
+  }
 }
 
 export function registerIpc(deps: IpcDeps): void {

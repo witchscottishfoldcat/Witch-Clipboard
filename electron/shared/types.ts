@@ -36,6 +36,8 @@ export interface ClipItem {
   kind: ItemKind
   /** 完整文本；image 类型为 null */
   text: string | null
+  /** 富文本来源的 HTML；普通文本、图片和文件通常为 null。 */
+  html?: string | null
   /** 列表用摘要（首行、已折叠空白） */
   preview: string
   /** 内容 sha256，去重用 */
@@ -105,6 +107,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   /** 主界面按钮、选中态和强调色使用的统一调色盘 */
   accent: AccentPalette
+  /** 主面板与迷你面板的背景不透明度（20–100） */
+  opacity: number
   /** 用户选了「暂不更新」的版本号，启动时不再提示它 */
   skippedVersion: string | null
 }

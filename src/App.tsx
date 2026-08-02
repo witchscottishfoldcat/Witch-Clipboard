@@ -22,6 +22,7 @@ import { UpdateBanner } from '@/components/UpdateBanner'
 import { CrossDeviceSheet } from '@/components/CrossDeviceSheet'
 import { DEFAULT_VISIBLE_FILTERS } from '@/lib/kinds'
 import { applyAccent } from '@/lib/accent'
+import { applyPanelBackgroundOpacity } from '@/lib/opacity'
 
 const PASTE_FAILURE_TEXT: Record<NonNullable<PasteOutcome['reason']>, string> = {
   'no-native': '已复制到剪贴板，请手动 Ctrl+V（原生能力不可用）',
@@ -76,6 +77,7 @@ export default function App() {
       setQuickPasteModifiers(s.quickPasteModifiers)
       setVisibleFilters(s.visibleFilters)
       applyAccent(s.accent)
+      applyPanelBackgroundOpacity(s.opacity)
     })
   }, [])
 
@@ -249,7 +251,7 @@ export default function App() {
   ])
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-white/74 text-black dark:bg-[#0b0b12]/72 dark:text-white">
+    <div className="panel-surface relative flex h-full flex-col overflow-hidden text-black dark:text-white">
       <Header
         value={q}
         onChange={setQ}

@@ -26,9 +26,16 @@ const DEFAULTS: Settings = {
   autoLaunch: false,
   theme: 'system',
   accent: 'violet',
+  opacity: 90,
   skippedVersion: null,
 }
 const ACCENTS: Settings['accent'][] = ['violet', 'blue', 'cyan', 'teal', 'green', 'amber', 'rose']
+
+function normalizeOpacity(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(100, Math.max(20, Math.round(value)))
+    : DEFAULTS.opacity
+}
 
 let cache: Settings | null = null
 
@@ -50,6 +57,7 @@ export function getSettings(): Settings {
           ? ['all', ...raw.visibleFilters.filter((id) => id !== 'all')]
           : DEFAULTS.visibleFilters,
       accent: raw.accent && ACCENTS.includes(raw.accent) ? raw.accent : DEFAULTS.accent,
+      opacity: normalizeOpacity(raw.opacity),
     }
   } catch {
     cache = { ...DEFAULTS }
@@ -58,7 +66,12 @@ export function getSettings(): Settings {
 }
 
 export function saveSettings(patch: Partial<Settings>): Settings {
-  const next = { ...getSettings(), ...patch }
+  const current = getSettings()
+  const next = {
+    ...current,
+    ...patch,
+    opacity: normalizeOpacity(patch.opacity ?? current.opacity),
+  }
   cache = next
   try {
     mkdirSync(dirname(file()), { recursive: true })

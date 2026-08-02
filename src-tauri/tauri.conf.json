@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Witch Clipboard",
+  "version": "1.5.0",
+  "identifier": "com.witchcat.clipboard",
+  "build": {
+    "beforeDevCommand": "npm run dev:tauri:web",
+    "devUrl": "http://127.0.0.1:1421",
+    "beforeBuildCommand": "npm run build:tauri:web",
+    "frontendDist": "../out/tauri-renderer"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/witchscottishfoldcat/Witch-Clipboard/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

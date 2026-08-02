@@ -1,0 +1,44 @@
+# Tauri 正式迁移验收清单
+
+更新日期：2026-08-01
+
+## 已完成
+
+- [x] React UI 保持不变，默认 `dev`、`build`、`dist` 已切换到 Tauri
+- [x] Electron 构建和 100 项自检保留为显式回滚脚本
+- [x] 文字、HTML、图片、`CF_HDROP`、来源进程、敏感格式和自动粘贴均由 Rust 实现
+- [x] 主面板与迷你面板按需创建；Release 隐藏 60 秒后以无 WebView 模式快速重启
+- [x] 托盘冷却、失焦收起、关闭仅隐藏、单实例、全局热键和 1–9 快速粘贴
+- [x] 设置、开机自启、保留策略、标签、关联检索、跨设备局域网传输
+- [x] Chromium safeStorage/DPAPI、数据库派生密钥和 `ZTB1` Blob 完全兼容
+- [x] SQLite3MultipleCiphers/sqleet 从同一 amalgamation 按目标架构编译
+- [x] schema v4 → v5 前创建并验证在线加密备份，迁移使用事务
+- [x] 密钥或数据库异常时明确提示且不覆盖旧库
+- [x] Tauri API 不再继承 Electron fallback
+- [x] Tauri 官方 updater 的检查、下载、进度、安装、跳过版本和静默检查已接入
+- [x] GitHub Actions x64/ARM64 发布矩阵与 `latest.json` 流程已配置
+- [x] TypeScript 检查通过；Rust 17 项自动测试通过，1 项系统剪贴板 E2E 显式隔离；Electron 100 项回归通过
+- [x] 主面板与迷你面板背景透明度可持久化调节，默认 90%，不影响文字、图标和内容清晰度
+- [x] 正式支持范围收紧为 Windows x64/ARM64，已删除无原生能力支撑的 Tauri macOS 打包入口
+- [x] 可重复性能基准与显式授权的系统剪贴板 E2E 脚本已纳入仓库
+
+## 构建与性能证据
+
+- [x] Windows x64 NSIS：3.18 MB（Electron 1.5.0：103.28 MB）
+- [x] 隐藏冷启动：1 个进程，14.98 MB Working Set / 2.64 MB Private
+- [x] 正式 x64 产物自动化 10 次完整冷启动：p50 993.6 ms / p95 1051.5 ms
+- [x] 纯后台首次按需建 WebView：652.5 ms；已有 WebView 的 10 次热唤出：p50 24.6 ms / p95 31.4 ms
+- [x] 完整面板可见：7 个进程，411.31 MB Working Set / 313.70 MB Private
+- [x] 面板隐藏 65 秒：原进程被无 WebView 后台进程替换，14.65 MB / 2.60 MB，0 个子进程
+- [ ] 在干净的 Windows ARM64 runner 上完成第一次发布工作流
+- [x] Electron 原有对照：p50 31.8 ms / p95 36.2 ms；Tauri 新自动化口径热态 24.6/31.4 ms，两者不做跨口径胜负结论
+- [x] 产品取舍已记录：接受首次唤出回退，换取 96.9% 安装包缩减和约 15 MB 长期后台态
+
+## 发布前必须由维护者完成
+
+- [ ] 生成并离线备份唯一的 Tauri updater 密钥对
+- [ ] 配置 GitHub `WCC_UPDATER_PUBLIC_KEY` 变量与两个签名 secrets
+- [ ] 在已安装 Electron 的快照机执行一次覆盖安装、回退和卸载保留数据测试
+- [ ] 退出正式 Electron 后执行 Tauri 图片、HTML、文件列表和自动粘贴的人工 E2E
+
+以上四项涉及生产签名凭据或会改变当前正式安装，不能由源码测试替代。

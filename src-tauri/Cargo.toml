@@ -1,0 +1,55 @@
+[package]
+name = "witch-clipboard"
+version = "1.5.0"
+description = "Local-first clipboard manager with encrypted history"
+authors = ["Thewitchcat"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+aes-gcm = "0.11"
+arboard = { version = "3.6", default-features = false, features = ["image-data"] }
+base64 = "0.22"
+dirs = "6"
+image = { version = "0.25", default-features = false, features = ["png"] }
+rand = "0.9"
+regex = "1.11"
+rusqlite = { version = "0.40.1", default-features = false, features = ["backup"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2.10", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2.3"
+tauri-plugin-process = "2.3"
+tauri-plugin-single-instance = "2.4"
+tauri-plugin-updater = "2.10"
+thiserror = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
+strip = true
+
+[patch.crates-io]
+libsqlite3-sys = { path = "../vendor/libsqlite3-sys" }

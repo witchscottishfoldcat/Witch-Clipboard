@@ -32,7 +32,7 @@
 - [x] 纯后台首次按需建 WebView：652.5 ms；已有 WebView 的 10 次热唤出：p50 24.6 ms / p95 31.4 ms
 - [x] 完整面板可见：7 个进程，411.31 MB Working Set / 313.70 MB Private
 - [x] 面板隐藏 65 秒：原进程被无 WebView 后台进程替换，14.65 MB / 2.60 MB，0 个子进程
-- [ ] 在原生 `windows-11-arm` 干净 runner 上完成 ARM64 测试、安装和启动 smoke（工作流已配置，等待本次推送结果）
+- [x] 在原生 `windows-11-arm` 干净 runner 上完成 ARM64 测试、NSIS 安装和启动 smoke
 - [x] Electron 原有对照：p50 31.8 ms / p95 36.2 ms；Tauri 新自动化口径热态 24.6/31.4 ms，两者不做跨口径胜负结论
 - [x] 产品取舍已记录：接受首次唤出回退，换取 96.9% 安装包缩减和约 15 MB 长期后台态
 

@@ -16,6 +16,7 @@ release-*/
 /video-production/
 /src-tauri/target/
 /src-tauri/gen/
+/src-tauri/tauri.signing.conf.json
 *.mp4
 *.webm
 *.mov

@@ -34,6 +34,20 @@ npm run selftest:system-clipboard
 4. 私钥原件必须离线备份；后续不可重新生成替代，否则已安装客户端无法验证新更新。
 5. 推送 `app-v<version>` tag 后，工作流构建 x64/ARM64 NSIS、签名并生成 `latest.json` 草稿发布。
 
+## Windows Authenticode 证书
+
+Tauri updater 签名只负责证明更新包未被替换，不能消除 SmartScreen。正式发布还必须配置：
+
+- `WINDOWS_CERTIFICATE`：代码签名 PFX 文件的 base64 内容。
+- `WINDOWS_CERTIFICATE_PASSWORD`：PFX 密码。
+
+发布工作流会把证书导入 runner 的当前用户证书库，动态写入不受版本控制的
+`src-tauri/tauri.signing.conf.json`，并为 EXE/NSIS 使用 SHA-256 和可信时间戳。缺少证书时工作流
+必须失败，禁止发布一个被误称为“已签名”的安装包。
+
+普通 `main` 推送会在干净的 `windows-latest` runner 上额外构建一次未签名 ARM64 NSIS，用来验证
+交叉编译和打包链路；它只作为 CI artifact，不得公开发行。
+
 x64/ARM64 矩阵故意设为 `max-parallel: 1`。`tauri-action` 对 `latest.json` 采用读取、合并、删除、
 重传流程；两个架构并行会存在丢失其中一个 `windows-<arch>` 条目的竞态。发布草稿转正前必须检查
 `latest.json` 同时包含 `windows-x86_64` 与 `windows-aarch64`。
